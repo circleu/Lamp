@@ -1,8 +1,8 @@
 module Main where
 
-import Control.Monad.State.Strict
-import System.Environment
-import Text.Megaparsec
+import Control.Monad.State.Strict (evalStateT)
+import System.Environment (getArgs)
+import Text.Megaparsec (parse)
 
 import qualified Parser as P
 import qualified CodeGenerator as C

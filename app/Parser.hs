@@ -18,7 +18,7 @@ type Converter a = StateT Int a
 
 lSpaceConsm = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 lSymbl = L.symbol lSpaceConsm
-lIdent = some (noneOf "\n (){}[]#;") <* lSpaceConsm
+lIdent = try $ some (noneOf "\n (){}[]#;") <* lSpaceConsm
 
 type TAst = [TStatm]
 
@@ -42,6 +42,7 @@ data TExprs
 
 pParse :: Parser TAst
 pParse = do
+    _ <- lSpaceConsm
     ast <- manyTill (pStatm <* (void (some eol) <|> eof)) eof
     ast' <- filter (/= TNothing) <$> cMacroConversion ast
     return $ cLastConversions $ repeatConversion ast'
@@ -126,9 +127,9 @@ pCharLiteral = do
             in case prefix of
             "`\'" -> return str
             _ -> empty
-pStringLiteral :: Parser TExprs
-pStringLiteral = do
-    i0 <- backtick
+pStringLiteral :: Parser TExprs -- TODO: This cannot parse strings with spaces
+pStringLiteral = do             --       Change structure like this: `"Hello, World"
+    i0 <- backtick              --       Apply this to char too like this: `'h'
     i0' <- convertString i0
     return $ TStringLiteral i0'
     where

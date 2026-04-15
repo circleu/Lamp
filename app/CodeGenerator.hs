@@ -24,7 +24,7 @@ cgConvert a = do
     header <- readFile "c-source/header.c"
     return $ header ++ concat h ++ bodyWrapper b
     where
-        bodyWrapper s = "int main(void){" ++ s ++ "}"
+        bodyWrapper s = "int main(int argc, char** argv){" ++ s ++ "}"
 cgGenerate :: TAst -> CodeGenerator String
 cgGenerate a0 = concat <$> sequence [(++ ";") <$> generate a0' | TExprs a0' <- a0] where
     generate :: TExprs -> CodeGenerator String
