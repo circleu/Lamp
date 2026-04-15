@@ -1,0 +1,26 @@
+cabal-version:      3.0
+name:               Lamp
+version:            0.1.0.0
+-- synopsis:
+-- description:
+license:            MIT
+license-file:       LICENSE
+author:             circleu
+maintainer:         shawndev25@gmail.com
+-- copyright:
+category:           Development
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+extra-source-files: c-source/*
+
+common warnings
+    ghc-options: -Wall
+
+executable Lamp
+    import:           warnings
+    main-is:          Main.hs
+    other-modules:    Parser CodeGenerator
+    -- other-extensions:
+    build-depends:    mtl, megaparsec, base ^>=4.18.3.0
+    hs-source-dirs:   app
+    default-language: Haskell2010

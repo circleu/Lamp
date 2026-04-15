@@ -1,0 +1,7 @@
+ignore-project: False
+
+package *
+  ghc-location: ghc
+
+program-locations
+  ghc-location: ghc
