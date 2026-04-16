@@ -43,7 +43,7 @@ data TExprs
 pParse :: Parser TAst
 pParse = do
     _ <- lSpaceConsm
-    ast <- manyTill (pStatm <* (void (some eol) <|> eof)) eof
+    ast <- manyTill (pStatm <* (void lSpaceConsm <|> eof)) eof
     ast' <- filter (/= TNothing) <$> cMacroConversion ast
     return $ cLastConversions $ repeatConversion ast'
     where
@@ -66,9 +66,7 @@ pNameDeclr = do
 
 pExprs :: Parser TExprs
 pExprs
-    =   try pIntLiteral
-    <|> try pCharLiteral
-    <|> try pStringLiteral
+    =   try pMachineData
     <|> try pLambd
     <|> try pSubtt
     <|> try pApplc
@@ -76,75 +74,29 @@ pExprs
     <|> pIdent
 pUnitExprs :: Parser TExprs
 pUnitExprs
-    =   try pIntLiteral
-    <|> try pCharLiteral
-    <|> try pStringLiteral
+    =   try pMachineData
     <|> try pLambd
     <|> try pParnt
     <|> pIdent
-pIntLiteral :: Parser TExprs
-pIntLiteral = do
-    i0 <- backtick
-    i0' <- convert i0
-    return $ TIntLiteral i0'
-    where
-        backtick :: Parser String
-        backtick = do
-            x <- char '`'
-            xs <- lIdent
-            return (x : xs)
-        convert :: String -> Parser Int
-        convert (_ : x : xs) = case x of
-            'd' -> let ret = readDec xs in case ret of
-                [(n, _)] -> return n
-                _ -> empty
-            'h' -> let ret = readHex xs in case ret of
-                [(n, _)] -> return n
-                _ -> empty
-            'b' -> let ret = readBin xs in case ret of
-                [(n, _)] -> return n
-                _ -> empty
-            'o' -> let ret = readOct xs in case ret of
-                [(n, _)] -> return n
-                _ -> empty
+pMachineData :: Parser TExprs
+pMachineData = do
+    (x : xs) <- char '`' >> lIdent
+    case x of
+        'd' -> let ret = readDec xs in case ret of
+            [(n, _)] -> return $ TIntLiteral n
             _ -> empty
-        convert _ = empty
-pCharLiteral :: Parser TExprs
-pCharLiteral = do
-    i0 <- backtick
-    i0' <- convertChar i0
-    return $ TCharLiteral i0'
-    where
-        backtick :: Parser String
-        backtick = do
-            x <- char '`'
-            xs <- lIdent
-            return (x : xs)
-        convertChar :: String -> Parser Char
-        convertChar s0 =
-            let prefix = take 2 s0
-                str = head $ drop 2 s0
-            in case prefix of
-            "`\'" -> return str
+        'h' -> let ret = readHex xs in case ret of
+            [(n, _)] -> return $ TIntLiteral n
             _ -> empty
-pStringLiteral :: Parser TExprs -- TODO: This cannot parse strings with spaces
-pStringLiteral = do             --       Change structure like this: `"Hello, World"
-    i0 <- backtick              --       Apply this to char too like this: `'h'
-    i0' <- convertString i0
-    return $ TStringLiteral i0'
-    where
-        backtick :: Parser String
-        backtick = do
-            x <- char '`'
-            xs <- lIdent
-            return (x : xs)
-        convertString :: String -> Parser String
-        convertString s0 =
-            let prefix = take 2 s0
-                str = drop 2 s0
-            in case prefix of
-            "`\"" -> return str
+        'b' -> let ret = readBin xs in case ret of
+            [(n, _)] -> return $ TIntLiteral n
             _ -> empty
+        'o' -> let ret = readOct xs in case ret of
+            [(n, _)] -> return $ TIntLiteral n
+            _ -> empty
+        '\'' -> return $ TCharLiteral (head xs)
+        '\"' -> return $ TStringLiteral xs
+        _ -> empty
 pLambd :: Parser TExprs
 pLambd = do
     _ <- lSymbl "\\"
@@ -320,7 +272,7 @@ cLastConversion (TApplc e0 e1) = do
     let (op, ops) = convert (TApplc e0 e1) []
     case op of
         TIdent s0 ->
-            if elem s0 ["`+", "`-", "`*", "`/", "`%"] then do 
+            if elem s0 ["`+", "`-", "`*", "`/", "`%"] then
                 TIntLiteral $ operation s0 [x | TIntLiteral x <- ops]
             else
                 let e0' = cLastConversion e0

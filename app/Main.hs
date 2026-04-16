@@ -11,13 +11,13 @@ import qualified CodeGenerator as C
 main :: IO ()
 main = do
     args <- getArgs
-    if length args == 1 then do
-        source <- readFile $ head args
+    if length args == 2 then do
+        source <- readFile $ args !! 0
         let result = parse (evalStateT P.pParse []) source source
         case result of
             Left _ -> putStrLn "error"
             Right ast -> do
                 r <- C.cgConvert ast
-                writeFile "test.c" r
+                writeFile (args !! 1) r
     else
-        putStrLn "require only 1 argument"
+        putStrLn "usage: ./Lamp [input] [output]"

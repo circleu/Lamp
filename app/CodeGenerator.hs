@@ -14,14 +14,14 @@ cgCCreat n s = "ccreat(" ++ n ++ "," ++ s ++ ")"
 cgApply a b = "apply(" ++ a ++ "," ++ b ++ ")"
 cgLookup i = "lookup(nenv," ++ show i ++ ")"
 cgReturn s = "return " ++ s ++ ";"
-cgPrimitive = ["`entry", "`retrn"]
+cgPrimitive = ["`retrn", "`argv"]
 
 cgConvert :: TAst -> IO String
 cgConvert a = do 
     let r = runState (cgGenerate a) (0, [])
         (_, h) = snd r
         b = fst r
-    header <- readFile "c-source/header.c"
+    header <- readFile "header.c"
     return $ header ++ concat h ++ bodyWrapper b
     where
         bodyWrapper s = "int main(int argc, char** argv){" ++ s ++ "}"
@@ -79,9 +79,16 @@ cgGenerate a0 = concat <$> sequence [(++ ";") <$> generate a0' | TExprs a0' <- a
             return $ cgApply e0' e1'
         where
             primitive "`retrn" s = "return " ++ s
+            primitive "`argv" s = "argv[" ++ s ++ "]"
+            primitive _ _ = ""
     generate (TIdent s0) = do return $ "&g" ++ s0
     generate (TDBIdent i0) = do return $ cgLookup i0
     generate (TIntLiteral i0) = do return $ show i0
     generate (TCharLiteral c0) = do return $ "\'" ++ [c0] ++ "\'"
-    generate (TStringLiteral s0) = do return $ "\"" ++ s0 ++ "\""
+    generate (TStringLiteral s0) = do return $ "\"" ++ convert "" s0 ++ "\"" where
+        convert x0 ('\\' : xs) =
+            if head xs == 's' then x0 ++ " " ++ drop 1 xs
+            else convert (x0 ++ ['\\']) xs
+        convert x0 (x : xs) = convert (x0 ++ [x]) xs
+        convert _ _ = ""
     generate _ = do return ""
