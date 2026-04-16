@@ -14,7 +14,10 @@ cgCCreat n s = "ccreat(" ++ n ++ "," ++ s ++ ")"
 cgApply a b = "apply(" ++ a ++ "," ++ b ++ ")"
 cgLookup i = "lookup(nenv," ++ show i ++ ")"
 cgReturn s = "return " ++ s ++ ";"
-cgPrimitive = ["`retrn", "`argv"]
+cgMemorySize "1" = "volatile unsigned char"
+cgMemorySize "2" = "volatile unsigned short int"
+cgMemorySize "4" = "volatile unsigned int"
+cgMemorySize "8" = "volatile unsigned long int"
 
 cgConvert :: TAst -> IO String
 cgConvert a = do 
@@ -65,30 +68,34 @@ cgGenerate a0 = concat <$> sequence [(++ ";") <$> generate a0' | TExprs a0' <- a
 
                 return $ cgCCreat n "NULL"
             application e0 = generate e0
-    generate (TApplc e0 e1) = case e0 of
-        TIdent s0 -> if elem s0 cgPrimitive then do
-            e1' <- generate e1
-            return $ primitive s0 e1'
-            else do
-                e0' <- generate e0
-                e1' <- generate e1 
-                return $ cgApply e0' e1'
-        _ -> do
-            e0' <- generate e0
-            e1' <- generate e1 
-            return $ cgApply e0' e1'
-        where
-            primitive "`retrn" s = "return " ++ s
-            primitive "`argv" s = "argv[" ++ s ++ "]"
-            primitive _ _ = ""
-    generate (TIdent s0) = do return $ "&g" ++ s0
-    generate (TDBIdent i0) = do return $ cgLookup i0
-    generate (TIntLiteral i0) = do return $ show i0
-    generate (TCharLiteral c0) = do return $ "\'" ++ [c0] ++ "\'"
-    generate (TStringLiteral s0) = do return $ "\"" ++ convert "" s0 ++ "\"" where
+    generate (TApplc e0 e1) = do
+        e0' <- generate e0
+        e1' <- generate e1 
+        return $ cgApply e0' e1'
+    generate (TIdent s0) = return $ "&g" ++ s0
+    generate (TDBIdent i0) = return $ cgLookup i0
+    generate (TIntLitrl i0) = return $ show i0
+    generate (TCharLitrl c0) = return $ "\'" ++ [c0] ++ "\'"
+    generate (TStrngLitrl s0) = return $ "\"" ++ convert "" s0 ++ "\"" where
         convert x0 ('\\' : xs) =
             if head xs == 's' then x0 ++ " " ++ drop 1 xs
             else convert (x0 ++ ['\\']) xs
         convert x0 (x : xs) = convert (x0 ++ [x]) xs
         convert _ _ = ""
+    generate (TRetrn e0) = do
+        e0' <- generate e0
+        return $ cgReturn e0'
+    generate TArgc = return "argc"
+    generate (TArgv e0) = do
+        e0' <- generate e0
+        return $ "argv[" ++ e0' ++ "]"
+    generate (TReadMem e0 e1) = do
+        e0' <- generate e0
+        e1' <- generate e1
+        return $ "*(" ++ cgMemorySize e1' ++ "*)" ++ e0'
+    generate (TWriteMem e0 e1 e2) = do
+        e0' <- generate e0
+        e1' <- generate e1
+        e2' <- generate e2
+        return $ "*(" ++ cgMemorySize e2' ++ "*)" ++ e0' ++ "=" ++ e1'
     generate _ = do return ""

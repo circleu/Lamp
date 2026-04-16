@@ -1,4 +1,5 @@
 test.c
 test.lmp
+header.c
 dist-newstyle/*
 specs.txt

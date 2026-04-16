@@ -6,7 +6,7 @@ import Data.List (elemIndex)
 import Data.Void (Void)
 import Numeric (readDec, readHex, readBin, readOct)
 import Text.Megaparsec (noneOf, manyTill, some, many, (<|>), Parsec, MonadParsec(try, eof), empty)
-import Text.Megaparsec.Char (eol, char, space1)
+import Text.Megaparsec.Char (char, space1)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Read (readMaybe)
 
@@ -35,22 +35,27 @@ data TExprs
     | TIdent String
     | TDBLambd TExprs
     | TDBIdent Int
-    | TIntLiteral Int
-    | TCharLiteral Char
-    | TStringLiteral String
+    | TIntLitrl Int
+    | TCharLitrl Char
+    | TStrngLitrl String
+    | TRetrn TExprs
+    | TArgc
+    | TArgv TExprs
+    | TReadMem TExprs TExprs
+    | TWriteMem TExprs TExprs TExprs
     deriving (Show, Eq)
 
 pParse :: Parser TAst
 pParse = do
     _ <- lSpaceConsm
-    ast <- manyTill (pStatm <* (void lSpaceConsm <|> eof)) eof
+    ast <- manyTill (pStatm <* lSpaceConsm) eof
     ast' <- filter (/= TNothing) <$> cMacroConversion ast
-    return $ cLastConversions $ repeatConversion ast'
+    return $ repeatc cLastConversions $ repeatc cConversions ast'
     where
-        repeatConversion :: TAst -> TAst
-        repeatConversion a =
-            let a' = cConversions a
-            in if a' == a then a' else repeatConversion a'
+        repeatc :: (TAst -> TAst) -> TAst -> TAst
+        repeatc f a =
+            let a' = f a
+            in if a' == a then a' else repeatc f a'
 
 pStatm :: Parser TStatm
 pStatm
@@ -83,19 +88,19 @@ pMachineData = do
     (x : xs) <- char '`' >> lIdent
     case x of
         'd' -> let ret = readDec xs in case ret of
-            [(n, _)] -> return $ TIntLiteral n
+            [(n, _)] -> return $ TIntLitrl n
             _ -> empty
         'h' -> let ret = readHex xs in case ret of
-            [(n, _)] -> return $ TIntLiteral n
+            [(n, _)] -> return $ TIntLitrl n
             _ -> empty
         'b' -> let ret = readBin xs in case ret of
-            [(n, _)] -> return $ TIntLiteral n
+            [(n, _)] -> return $ TIntLitrl n
             _ -> empty
         'o' -> let ret = readOct xs in case ret of
-            [(n, _)] -> return $ TIntLiteral n
+            [(n, _)] -> return $ TIntLitrl n
             _ -> empty
-        '\'' -> return $ TCharLiteral (head xs)
-        '\"' -> return $ TStringLiteral xs
+        '\'' -> return $ TCharLitrl (head xs)
+        '\"' -> return $ TStrngLitrl xs
         _ -> empty
 pLambd :: Parser TExprs
 pLambd = do
@@ -232,13 +237,10 @@ cConversion (TApplc e0 e1) = case e0 of
         in TApplc e0' e1'
     where
         application :: TExprs -> TExprs -> Int -> TExprs
-        application (TDBLambd e0') e0 bv = case bv of
-            (-1) -> 
-                let e0'' = application e0' e0 0
-                in e0''
-            _ ->
-                let e0'' = application e0' e0 (bv + 1)
-                in TDBLambd e0''
+        application (TDBLambd e0') e0 bv = 
+            let e0'' = application e0' e0 (bv + 1)
+            in if bv == -1 then e0''
+            else TDBLambd e0''
         application (TApplc e0' e1') e0 bv =
             let e0'' = application e0' e0 bv
                 e1'' = application e1' e0 bv
@@ -273,7 +275,9 @@ cLastConversion (TApplc e0 e1) = do
     case op of
         TIdent s0 ->
             if elem s0 ["`+", "`-", "`*", "`/", "`%"] then
-                TIntLiteral $ operation s0 [x | TIntLiteral x <- ops]
+                TIntLitrl $ operation s0 [x | TIntLitrl x <- ops]
+            else if elem s0 ["`retrn", "`argc", "`argv", "`readMem", "`writeMem"] then
+                primitive s0 ops
             else
                 let e0' = cLastConversion e0
                     e1' = cLastConversion e1
@@ -291,6 +295,28 @@ cLastConversion (TApplc e0 e1) = do
         operation "`/" (op : ops) = foldl div op ops
         operation "`%" (op : ops) = foldl mod op ops
         operation _ _ = -1
+        primitive "`retrn" (a : _) = TRetrn a
+        primitive "`argc" _ = TArgc
+        primitive "`argv" (a : _) = TArgv a
+        primitive "`readMem" (a : b : _) = TReadMem a b
+        primitive "`writeMem" (a : b : c : _) = TWriteMem a b c
+        primitive _ _ = TIntLitrl 0
 cLastConversion (TIdent s0) = TIdent s0
 cLastConversion (TDBIdent i0) = TDBIdent i0
+cLastConversion (TRetrn e0) =
+    let e0' = cLastConversion e0
+    in TRetrn e0'
+cLastConversion TArgc = TArgc
+cLastConversion (TArgv e0) = 
+    let e0' = cLastConversion e0
+    in TArgv e0'
+cLastConversion (TReadMem e0 e1) =
+    let e0' = cLastConversion e0
+        e1' = cLastConversion e1
+    in TReadMem e0' e1'
+cLastConversion (TWriteMem e0 e1 e2) =
+    let e0' = cLastConversion e0
+        e1' = cLastConversion e1
+        e2' = cLastConversion e2
+    in TWriteMem e0' e1' e2'
 cLastConversion e0 = e0
