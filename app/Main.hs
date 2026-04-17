@@ -17,7 +17,6 @@ main = do
         case result of
             Left _ -> putStrLn "error"
             Right ast -> do
-                print ast
                 r <- C.cgConvert ast
                 writeFile (args !! 1) r
     else

@@ -1,7 +1,40 @@
 #define NULL ((void*)0)
 #define REGION_SIZE (0x4000)
-#define TLAMBDA (0)
-#define TMACHINE (1)
+
+#define DECLAREF0(a, b)\
+CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
+    ENVIRONMENT* nenv = extenv(this->env, arg);\
+    return ccreat(b, nenv);\
+}
+#define DECLAREF1(a, b)\
+CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
+    ENVIRONMENT* nenv = extenv(this->env, arg);\
+    b\
+}
+#define DECLAREV(a, b) CLOSURE* a = b;
+#define CCREAT(a, b) ccreat(a, b)
+#define APPLY(a, b) apply(a, b)
+#define LOOKUP(a) lookup(nenv, a)
+#define RETURN(a) return a;
+#define ARGC argc
+#define ARGV(a) argv[a]
+#define SIZE1 volatile unsigned char
+#define SIZE2 volatile unsigned short int
+#define SIZE4 volatile unsgined int
+#define SIZE8 volatile unsigned long int
+#define READSIZE1(a) *(SIZE1 *)a
+#define READSIZE2(a) *(SIZE2 *)a
+#define READSIZE4(a) *(SIZE4 *)a
+#define READSIZE8(a) *(SIZE8 *)a
+#define WRITESIZE1(a, b) *(SIZE1 *)a = b
+#define WRITESIZE2(a, b) *(SIZE2 *)a = b
+#define WRITESIZE4(a, b) *(SIZE4 *)a = b
+#define WRITESIZE8(a, b) *(SIZE8 *)a = b
+#define WRAPPER(a) int main(int argc, char** argv) {a}
+#define DECLAREXT(a, b) extern long int a b;
+#define EXTCALL(a, b) a b
+#define DECLARES(a, b) char a[b] = {0, };
+#define GETS(a) &a[0]
 
 
 //
@@ -22,8 +55,6 @@ void kmemset(void* s, char c, size_t n) {
 typedef struct _CLOSURE {
     struct _CLOSURE* (*fn)(struct _CLOSURE* this, struct _CLOSURE* args);
     struct _ENVIRONMENT* env;
-    long value;
-    int type;
 } CLOSURE;
 typedef struct _ENVIRONMENT {
     struct _CLOSURE* value;
@@ -57,8 +88,6 @@ CLOSURE* ccreat(CLOSURE* (*c)(CLOSURE* this, CLOSURE* arg), ENVIRONMENT* nenv) {
     CLOSURE* ret = kmalloc(sizeof(CLOSURE));
     ret->fn = c;
     ret->env = nenv;
-    ret->value = 0;
-    ret->type = TLAMBDA;
     return ret;
 }
 CLOSURE* apply(CLOSURE* arg0, CLOSURE* arg1) {
@@ -72,5 +101,5 @@ CLOSURE* lookup(ENVIRONMENT* env, unsigned long depth) {
         return env->value;
     }
 }
-char region[0x4000] = {0, };
+char region[REGION_SIZE] = {0, };
 unsigned int rptr = 0;
