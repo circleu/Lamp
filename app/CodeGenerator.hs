@@ -64,7 +64,17 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
 
             _ <- generate e0
             return $ cgCCreat n "NULL"
-        TApplc _ _ -> application e0
+        TApplc e0 e1 -> do
+            (c', _, _) <- get
+            let n = "f" ++ show c'
+            modify (\(c, s, h) -> (c + 1, s, h))
+
+            e0' <- generate e0
+            e1' <- generate e1 
+            let h' = cgDeclareFn1 n (cgReturn (cgApply e0' e1'))
+            modify (\(c, s, h) -> (c + 1, s, h' : h))
+
+            return $ cgCCreat n "NULL"
         _ -> do
             (c', _, _) <- get
             let n = "f" ++ show c'
@@ -75,20 +85,6 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             modify (\(c, s, h) -> (c + 1, s, h' : h))
 
             return $ cgCCreat n "NULL"
-        where
-            application :: TExprs -> CodeGenerator String
-            application (TApplc e0 e1) = do
-                (c', _, _) <- get
-                let n = "f" ++ show c'
-                modify (\(c, s, h) -> (c + 1, s, h))
-
-                e0' <- generate e0
-                e1' <- generate e1 
-                let h' = cgDeclareFn1 n (cgReturn (cgApply e0' e1'))
-                modify (\(c, s, h) -> (c + 1, s, h' : h))
-
-                return $ cgCCreat n "NULL"
-            application e0 = generate e0
     generate (TApplc e0 e1) = do
         e0' <- generate e0
         e1' <- generate e1 

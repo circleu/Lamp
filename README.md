@@ -8,3 +8,5 @@
 - This allows us to use real integers, not church integers.
 - For example, \`d25 is 25 in decimal, \`h3f is 3f in hexadecimal.
 - This also allows us to use primitive functions such as readMem, writeMem.
+### etc.
+- The executable, header.c, and files being included by #incld should placed in the same directory. (This will be changed soon)
