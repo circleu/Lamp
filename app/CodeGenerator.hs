@@ -33,6 +33,7 @@ cgDeclareExt a b = "DECLAREXT(" ++ a ++ "," ++ b ++ ")"
 cgExtCall a b = "EXTCALL(" ++ a ++ "," ++ b ++ ")"
 cgDeclareS a b = "DECLARES(" ++ a ++ "," ++ b ++ ")"
 cgGetS a = "GETS(" ++ a ++ ")"
+cgDeclareC a b = "DECLAREC(" ++ a ++ "," ++ b ++ ")"
 
 cgConvert :: TAst -> IO String
 cgConvert a = do 
@@ -42,7 +43,14 @@ cgConvert a = do
     header <- readFile "header.c"
     return $ header ++ concat h ++ cgWrapper b
 cgGenerate :: TAst -> CodeGenerator String
-cgGenerate a0 = concat <$> sequence [(++ ";") <$> generate a0' | TExprs a0' <- a0] where
+cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
+    generate' :: TStatm -> CodeGenerator String
+    generate' (TConstDeclr i0 e0) = do
+        i0' <- generate i0
+        e0' <- generate e0
+        return $ cgDeclareC i0' e0'
+    generate' (TExprs e0) = generate e0
+    generate' _ = return ""
     generate :: TExprs -> CodeGenerator String
     generate (TDBLambd e0) = case e0 of
         TDBLambd _ -> do
@@ -85,7 +93,7 @@ cgGenerate a0 = concat <$> sequence [(++ ";") <$> generate a0' | TExprs a0' <- a
         e0' <- generate e0
         e1' <- generate e1 
         return $ cgApply e0' e1'
-    generate (TIdent s0) = return $ "&g" ++ s0
+    generate (TIdent s0) = return s0
     generate (TDBIdent i0) = return $ cgLookup i0
     generate (TIntLitrl i0) = return $ show i0
     generate (TCharLitrl c0) = return $ "\'" ++ [c0] ++ "\'"
@@ -147,4 +155,4 @@ cgGenerate a0 = concat <$> sequence [(++ ";") <$> generate a0' | TExprs a0' <- a
     generate (TModl e0) = do
         e0' <- mapM generate e0
         return $ "(" ++ intercalate "%" e0' ++ ")"
-    generate _ = do return ""
+    generate _ = return ""

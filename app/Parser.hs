@@ -24,6 +24,7 @@ type TAst = [TStatm]
 
 data TStatm
     = TNameDeclr TExprs TExprs
+    | TConstDeclr TExprs TExprs
     | TExprs TExprs
     | TNothing
     deriving (Show, Eq)
@@ -67,14 +68,21 @@ pParse = do
 pStatm :: Parser TStatm
 pStatm
     = ( pNameDeclr
+    <|> pConstDeclr
     <|> TExprs <$> pExprs
     ) <* lSymbl ";"
 pNameDeclr :: Parser TStatm
 pNameDeclr = try $ do
     i0 <- pIdent
-    _ <- lSymbl "="
+    _ <- lSymbl ":="
     e0 <- pExprs
     return $ TNameDeclr i0 e0
+pConstDeclr :: Parser TStatm
+pConstDeclr = try $ do
+    i0 <- pIdent
+    _ <- lSymbl "="
+    e0 <- pExprs
+    return $ TConstDeclr i0 e0
 
 pExprs :: Parser TExprs
 pExprs
@@ -144,7 +152,16 @@ pIdent = try $ do
 
 -- Converter --
 cDeBruijns :: TAst -> TAst
-cDeBruijns a = [TExprs $ cDeBruijn a' []  | TExprs a' <- a]
+cDeBruijns a = [cDeBruijn' s | s <- a]
+cDeBruijn' :: TStatm -> TStatm
+cDeBruijn' (TConstDeclr i0 e0) =
+    let i0' = cDeBruijn i0 []
+        e0' = cDeBruijn e0 []
+    in TConstDeclr i0' e0'
+cDeBruijn' (TExprs e0) =
+    let e0' = cDeBruijn e0 []
+    in TExprs e0'
+cDeBruijn' s0 = s0
 cDeBruijn :: TExprs -> [TExprs] -> TExprs
 cDeBruijn (TLambd i0 e0) bvs =
     let e0' = cDeBruijn e0 (i0 : bvs)
@@ -169,6 +186,7 @@ cMacroConversion a0 = cDeBruijns <$> sequence [cmcStatm a0' | a0' <- a0] where
     cmcStatm :: TStatm -> Parser TStatm
     cmcStatm s0 = case s0 of
         TNameDeclr i0 e0 -> cmcNameDeclr i0 e0
+        TConstDeclr i0 e0 -> cmcConstDeclr i0 e0
         TExprs e0 -> TExprs <$> cmcExprs e0
         _ -> return s0
     cmcNameDeclr :: TExprs -> TExprs -> Parser TStatm
@@ -176,6 +194,10 @@ cMacroConversion a0 = cDeBruijns <$> sequence [cmcStatm a0' | a0' <- a0] where
         e0' <- cmcExprs e0
         modify (\nl -> (i0, e0') : nl)
         return TNothing
+    cmcConstDeclr :: TExprs -> TExprs -> Parser TStatm
+    cmcConstDeclr i0 e0 = do
+        e0' <- cmcExprs e0
+        return $ TConstDeclr i0 e0'
     cmcExprs :: TExprs -> Parser TExprs
     cmcExprs e0 = case e0 of
         TLambd i0' e0' -> cmcLambd i0' e0'
@@ -211,7 +233,16 @@ cMacroConversion a0 = cDeBruijns <$> sequence [cmcStatm a0' | a0' <- a0] where
             convertNum 0 e0 = e0
             convertNum n e0 = convertNum (n - 1) (TApplc (TIdent "f") e0)
 cConversions :: TAst -> TAst
-cConversions a = [TExprs $ cConversion a' | TExprs a' <- a]
+cConversions a = [cConversion' s | s <- a]
+cConversion' :: TStatm -> TStatm
+cConversion' (TConstDeclr i0 e0) =
+    let i0' = cConversion i0
+        e0' = cConversion e0
+    in TConstDeclr i0' e0'
+cConversion' (TExprs e0) =
+    let e0' = cConversion e0
+    in TExprs e0'
+cConversion' s0 = s0
 cConversion :: TExprs -> TExprs
 cConversion (TDBLambd e0) =
     let e0' = cConversion e0
@@ -272,7 +303,16 @@ cConversion (TApplc e0 e1) = case e0 of
         shifting e0 _ = e0
 cConversion e0 = e0
 cLastConversions :: TAst -> TAst
-cLastConversions a = [TExprs $ cLastConversion a' | TExprs a' <- a]
+cLastConversions a = [cLastConversion' s | s <- a]
+cLastConversion' :: TStatm -> TStatm
+cLastConversion' (TConstDeclr i0 e0) =
+    let i0' = cLastConversion i0
+        e0' = cLastConversion e0
+    in TConstDeclr i0' e0'
+cLastConversion' (TExprs e0) =
+    let e0' = cLastConversion e0
+    in TExprs e0'
+cLastConversion' s0 = s0
 cLastConversion :: TExprs -> TExprs
 cLastConversion (TDBLambd e0) =
     let e0' = cLastConversion e0

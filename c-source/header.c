@@ -20,7 +20,7 @@ CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
 #define ARGV(a) argv[a]
 #define SIZE1 volatile unsigned char
 #define SIZE2 volatile unsigned short int
-#define SIZE4 volatile unsgined int
+#define SIZE4 volatile unsigned int
 #define SIZE8 volatile unsigned long int
 #define READSIZE1(a) *(SIZE1 *)a
 #define READSIZE2(a) *(SIZE2 *)a
@@ -31,10 +31,11 @@ CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
 #define WRITESIZE4(a, b) *(SIZE4 *)a = b
 #define WRITESIZE8(a, b) *(SIZE8 *)a = b
 #define WRAPPER(a) int main(int argc, char** argv) {a}
-#define DECLAREXT(a, b) extern long int a b;
+#define DECLAREXT(a, b) extern unsigned long int a b;
 #define EXTCALL(a, b) a b
 #define DECLARES(a, b) char a[b] = {0, };
 #define GETS(a) &a[0]
+#define DECLAREC(a, b) unsigned long int a = b;
 
 
 //
