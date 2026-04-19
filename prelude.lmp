@@ -1,0 +1,14 @@
+TRUE := \x .\y .x;
+FALSE := \x .\y .y;
+PAIR := \x .\y .\f .f x y;
+HEAD := \p .p (\x .\y .x);
+TAIL := \p .p (\x .\y .y);
+NIL := FALSE;
+ISNIL := \p .p (\x .\y .FALSE);
+CONS := \x .\y .PAIR x y;
+ADD := \m .\n .\f .\x .m f (n f x);
+
+Z := \f .(\x .f (\v .x x v)) (\x .f (\v .x x v));
+
+_MAP := \r .\f .\l .if (ISNIL l) then NIL else CONS (f (HEAD l)) (r f (TAIL l));
+MAP := Z _MAP;
