@@ -1,5 +1,6 @@
 test.c
 test.lmp
+test
 header.c
 prelude.lmp
 dist-newstyle/*

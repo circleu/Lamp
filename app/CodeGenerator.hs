@@ -74,7 +74,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             modify (\(c, s, h, fh) -> (c, s, h' : h, fh' : fh))
 
             _ <- generate e0
-            return $ cgCCreat n "NULL"
+            return $ cgCCreat n "nenv"
         TApplc e0 e1 -> do
             (c', _, _, _) <- get
             let n = "f" ++ show c'
@@ -86,7 +86,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "NULL"
+            return $ cgCCreat n "nenv"
         _ -> do
             (c', _, _, _) <- get
             let n = "f" ++ show c'
@@ -97,7 +97,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "NULL"
+            return $ cgCCreat n "nenv"
     generate (TApplc e0 e1) = do
         e0' <- generate e0
         e1' <- generate e1 
