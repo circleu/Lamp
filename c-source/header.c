@@ -1,17 +1,18 @@
 #define NULL ((void*)0)
-#define REGION_SIZE (0x4000)
+#define REGION_SIZE (0x10000)
 
-#define DECLAREF0(a, b)\
+#define DECLAREF(a) CLOSURE* a(CLOSURE* this, CLOSURE* arg);
+#define DEFINEF0(a, b)\
 CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
     ENVIRONMENT* nenv = extenv(this->env, arg);\
     return ccreat(b, nenv);\
 }
-#define DECLAREF1(a, b)\
+#define DEFINEF1(a, b)\
 CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
     ENVIRONMENT* nenv = extenv(this->env, arg);\
     b\
 }
-#define DECLAREV(a, b) CLOSURE* a = b;
+#define DEFINEV(a, b) CLOSURE* a = b;
 #define CCREAT(a, b) ccreat(a, b)
 #define APPLY(a, b) apply(a, b)
 #define LOOKUP(a) lookup(nenv, a)
@@ -30,12 +31,15 @@ CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
 #define WRITESIZE2(a, b) *(SIZE2 *)a = b
 #define WRITESIZE4(a, b) *(SIZE4 *)a = b
 #define WRITESIZE8(a, b) *(SIZE8 *)a = b
-#define WRAPPER(a) int main(int argc, char** argv) {a}
+#define WRAPPER(a) int main(int argc, char** argv) {ENVIRONMENT* nenv = NULL; a}
 #define DECLAREXT(a, b) extern unsigned long int a b;
 #define EXTCALL(a, b) a b
-#define DECLARES(a, b) char a[b] = {0, };
+#define DEFINES(a, b) char a[b] = {0, };
 #define GETS(a) &a[0]
-#define DECLAREC(a, b) unsigned long int a = b;
+#define DEFINEC(a, b) unsigned long int a = b;
+#define DECODE(a) decode_church(a)
+#define IFTHENELSE(a, b, c) (a ? b : c)
+#define CHECKTF(a) check_tf(a)
 
 
 //
@@ -60,6 +64,7 @@ typedef struct _CLOSURE {
 typedef struct _ENVIRONMENT {
     struct _CLOSURE* value;
     struct _ENVIRONMENT* next;
+    unsigned long int c;
 } ENVIRONMENT;
 
 extern char region[REGION_SIZE];
@@ -75,14 +80,17 @@ void kfreal() {
 }
 
 ENVIRONMENT* extenv(ENVIRONMENT* env, CLOSURE* args) {
-    if (env->next != NULL) {
-        extenv(env->next, args);
+    if (env == NULL) {
+        env = kmalloc(sizeof(ENVIRONMENT));
+        env->next = NULL;
+        env->value = args;
         return env;
     }
     else {
-        env->next = kmalloc(sizeof(ENVIRONMENT));
-        env->next->value = args;
-        return NULL;
+        ENVIRONMENT* nenv = kmalloc(sizeof(ENVIRONMENT));
+        nenv->value = args;
+        nenv->next = env;
+        return nenv;
     }
 }
 CLOSURE* ccreat(CLOSURE* (*c)(CLOSURE* this, CLOSURE* arg), ENVIRONMENT* nenv) {
@@ -96,11 +104,37 @@ CLOSURE* apply(CLOSURE* arg0, CLOSURE* arg1) {
 }
 CLOSURE* lookup(ENVIRONMENT* env, unsigned long depth) {
     if (depth > 0) {
-        return lookup(env->next, depth);
+        return lookup(env->next, depth - 1);
     }
     else {
         return env->value;
     }
+
+}
+CLOSURE* self(CLOSURE* this, CLOSURE* arg) {
+    return this;
+}
+CLOSURE* church(CLOSURE* this, CLOSURE* arg) {
+    unsigned long int* cptr = (unsigned long int*)this->env;
+    (*cptr)++;
+    return this;
+}
+unsigned long int decode_church(CLOSURE* num) {
+    unsigned int init = rptr;
+    unsigned long int c = 0;
+    CLOSURE* counter = ccreat(church, (ENVIRONMENT*)&c);
+    CLOSURE* dummy = ccreat(self, NULL);
+    apply(apply(num, counter), dummy);
+    rptr = init;
+    return c;
+}
+char check_tf(CLOSURE* cond) {
+    const char t = 1;
+    const char f = 0;
+    CLOSURE* ctrue = ccreat(self, (ENVIRONMENT*)&t);
+    CLOSURE* cfalse = ccreat(self, (ENVIRONMENT*)&f);
+    char* result = (char*)apply(apply(cond, ctrue), cfalse)->env;
+    return *result;
 }
 char region[REGION_SIZE] = {0, };
 unsigned int rptr = 0;

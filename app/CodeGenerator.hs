@@ -6,12 +6,13 @@ import Data.List (intercalate)
 import Parser
 
 
--- Fn, Sn, Header
-type CodeGenerator a = State (Int, Int, [String]) a
+-- Fn, Sn, Header, FnHeader
+type CodeGenerator a = State (Int, Int, [String], [String]) a
 
-cgDeclareFn0 a b = "DECLAREF0(" ++ a ++ "," ++ b ++ ")"
-cgDeclareFn1 a b = "DECLAREF1(" ++ a ++ "," ++ b ++ ")"
-cgDeclareVn a b = "DECLAREV(" ++ a ++ "," ++ b ++ ")"
+cgDeclareF a = "DECLAREF(" ++ a ++ ")"
+cgDefineFn0 a b = "DEFINEF0(" ++ a ++ "," ++ b ++ ")"
+cgDefineFn1 a b = "DEFINEF1(" ++ a ++ "," ++ b ++ ")"
+cgDefineVn a b = "DEFINEV(" ++ a ++ "," ++ b ++ ")"
 cgCCreat a b = "CCREAT(" ++ a ++ "," ++ b ++ ")"
 cgApply a b = "APPLY(" ++ a ++ "," ++ b ++ ")"
 cgLookup a = "LOOKUP(" ++ show a ++ ")"
@@ -31,58 +32,70 @@ cgWriteSize _ _ _ = ""
 cgWrapper a = "WRAPPER(" ++ a ++ ")"
 cgDeclareExt a b = "DECLAREXT(" ++ a ++ "," ++ b ++ ")"
 cgExtCall a b = "EXTCALL(" ++ a ++ "," ++ b ++ ")"
-cgDeclareS a b = "DECLARES(" ++ a ++ "," ++ b ++ ")"
+cgDefineS a b = "DEFINES(" ++ a ++ "," ++ b ++ ")"
 cgGetS a = "GETS(" ++ a ++ ")"
-cgDeclareC a b = "DECLAREC(" ++ a ++ "," ++ b ++ ")"
+cgDefineC a b = "DEFINEC(" ++ a ++ "," ++ b ++ ")"
+cgDecode a = "DECODE(" ++ a ++ ")"
+cgIfThenElse a b c = "IFTHENELSE(" ++ a ++ "," ++ b ++ "," ++ c ++ ")"
+cgCheckTF a = "CHECKTF(" ++ a ++ ")"
 
 cgConvert :: TAst -> IO String
 cgConvert a = do 
-    let r = runState (cgGenerate a) (0, 0, [])
-        (_, _, h) = snd r
+    let r = runState (cgGenerate a) (0, 0, [], [])
+        (_, _, h, fh) = snd r
         b = fst r
     header <- readFile "header.c"
-    return $ header ++ concat h ++ cgWrapper b
+    return $ header ++ concat fh ++ concat h ++ cgWrapper b
 cgGenerate :: TAst -> CodeGenerator String
 cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
     generate' :: TStatm -> CodeGenerator String
     generate' (TConstDeclr i0 e0) = do
         i0' <- generate i0
         e0' <- generate e0
-        return $ cgDeclareC i0' e0'
+        return $ cgDefineC i0' e0'
     generate' (TExprs e0) = generate e0
     generate' _ = return ""
     generate :: TExprs -> CodeGenerator String
+    generate (TLazy e0) = generate e0
+    generate (TIfThenElse e0 e1 e2) = do
+        e0' <- generate e0
+        e1' <- generate e1
+        e2' <- generate e2
+        return  $ cgIfThenElse (cgCheckTF e0') e1' e2'
     generate (TDBLambd e0) = case e0 of
         TDBLambd _ -> do
-            (c', _, _) <- get
+            (c', _, _, _) <- get
             let n = "f" ++ show c'
                 n' = "f" ++ show (c' + 1)
-            modify (\(c, s, h) -> (c + 1, s, h))
+            modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
-            let h' = cgDeclareFn0 n n'
-            modify (\(c, s, h) -> (c, s, h' : h))
+            let h' = cgDefineFn0 n n'
+            let fh' = cgDeclareF n
+            modify (\(c, s, h, fh) -> (c, s, h' : h, fh' : fh))
 
             _ <- generate e0
             return $ cgCCreat n "NULL"
         TApplc e0 e1 -> do
-            (c', _, _) <- get
+            (c', _, _, _) <- get
             let n = "f" ++ show c'
-            modify (\(c, s, h) -> (c + 1, s, h))
+            modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             e0' <- generate e0
             e1' <- generate e1 
-            let h' = cgDeclareFn1 n (cgReturn (cgApply e0' e1'))
-            modify (\(c, s, h) -> (c + 1, s, h' : h))
+            let h' = cgDefineFn1 n (cgReturn (cgApply e0' e1'))
+            let fh' = cgDeclareF n
+            modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
             return $ cgCCreat n "NULL"
         _ -> do
-            (c', _, _) <- get
+            (c', _, _, _) <- get
             let n = "f" ++ show c'
-            modify (\(c, s, h) -> (c + 1, s, h))
+            modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             e0' <- generate e0
-            let h' = cgDeclareFn1 n (cgReturn e0')
-            modify (\(c, s, h) -> (c + 1, s, h' : h))
+            let h' = cgDefineFn1 n (cgReturn e0')
+            let fh' = cgDeclareF n
+            modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
             return $ cgCCreat n "NULL"
     generate (TApplc e0 e1) = do
@@ -91,64 +104,28 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
         return $ cgApply e0' e1'
     generate (TIdent s0) = return s0
     generate (TDBIdent i0) = return $ cgLookup i0
-    generate (TIntLitrl i0) = return $ show i0
-    generate (TCharLitrl c0) = return $ "\'" ++ [c0] ++ "\'"
-    generate (TStrngLitrl s0) = return $ "\"" ++ convert "" s0 ++ "\"" where
-        convert x0 ('\\' : xs) =
-            if head xs == 's' then x0 ++ " " ++ drop 1 xs
-            else convert (x0 ++ ['\\']) xs
-        convert x0 (x : xs) = convert (x0 ++ [x]) xs
-        convert x0 "" = x0
     generate (TRetrn e0) = do
         e0' <- generate e0
-        return $ cgReturn e0'
-    generate TArgc = return cgArgc
-    generate (TArgv e0) = do
-        e0' <- generate e0
-        return $ cgArgv e0'
-    generate (TReadMem e0 e1) = do
-        e0' <- generate e0
-        e1' <- generate e1
-        return $ cgReadSize e1' e0'
-    generate (TWriteMem e0 e1 e2) = do
-        e0' <- generate e0
-        e1' <- generate e1
-        e2' <- generate e2
-        return $ cgWriteSize e2' e0' e1'
+        return $ cgReturn $ cgDecode e0'
     generate (TExtCall e0 e1) = do
         e0' <- generate e0
         let e0'' = drop 2 e0'
 
         e1' <- mapM generate e1
         let e1'' = "(" ++ intercalate "," (replicate (length e1') "long int") ++ ")"
-            h' = cgDeclareExt e0'' e1''
-        modify (\(c, s, h) -> (c, s, h' : h))
+            fh' = cgDeclareExt e0'' e1''
+        modify (\(c, s, h, fh) -> (c, s, h, fh' : fh))
 
         let e1'' = "(" ++ intercalate "," e1' ++ ")"
         return $ cgExtCall e0'' e1''
     generate (TAlloc e0) = do
-        (_, s', _) <- get
+        (_, s', _, _) <- get
         let n = "s" ++ show s'
-        modify (\(c, s, h) -> (c, s + 1, h))
+        modify (\(c, s, h, fh) -> (c, s + 1, h, fh))
 
         e0' <- generate e0
-        let h' = cgDeclareS n e0'
-        modify (\(c, s, h) -> (c, s, h' : h))
+        let h' = cgDefineS n e0'
+        modify (\(c, s, h, fh) -> (c, s, h' : h, fh))
 
         return $ cgGetS n
-    generate (TAddtt e0) = do
-        e0' <- mapM generate e0
-        return $ "(" ++ intercalate "+" e0' ++ ")"
-    generate (TSubtr e0) = do
-        e0' <- mapM generate e0
-        return $ "(" ++ intercalate "-" e0' ++ ")"
-    generate (TMultp e0) = do
-        e0' <- mapM generate e0
-        return $ "(" ++ intercalate "*" e0' ++ ")"
-    generate (TDivsn e0) = do
-        e0' <- mapM generate e0
-        return $ "(" ++ intercalate "/" e0' ++ ")"
-    generate (TModl e0) = do
-        e0' <- mapM generate e0
-        return $ "(" ++ intercalate "%" e0' ++ ")"
     generate _ = return ""

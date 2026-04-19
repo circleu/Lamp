@@ -3,9 +3,8 @@ module Parser where
 import Control.Monad.State.Strict (StateT, MonadState(get), modify, gets)
 import Data.List (elemIndex)
 import Data.Void (Void)
-import Numeric (readDec, readHex, readBin, readOct)
-import Text.Megaparsec (noneOf, manyTill, some, many, (<|>), Parsec, MonadParsec(try, eof), empty)
-import Text.Megaparsec.Char (char, space1)
+import Text.Megaparsec (noneOf, manyTill, some, many, (<|>), Parsec, MonadParsec(try, eof))
+import Text.Megaparsec.Char (space1)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Read (readMaybe)
 
@@ -29,27 +28,17 @@ data TStatm
     deriving (Show, Eq)
 
 data TExprs
-    = TLambd TExprs TExprs
+    = TLazy TExprs
+    | TIfThenElse TExprs TExprs TExprs
+    | TLambd TExprs TExprs
     | TSubtt TExprs TExprs TExprs
     | TApplc TExprs TExprs
     | TIdent String
     | TDBLambd TExprs
     | TDBIdent Int
-    | TIntLitrl Int
-    | TCharLitrl Char
-    | TStrngLitrl String
     | TRetrn TExprs
-    | TArgc
-    | TArgv TExprs
-    | TReadMem TExprs TExprs
-    | TWriteMem TExprs TExprs TExprs
     | TExtCall TExprs [TExprs]
     | TAlloc TExprs
-    | TAddtt [TExprs]
-    | TSubtr [TExprs]
-    | TMultp [TExprs]
-    | TDivsn [TExprs]
-    | TModl [TExprs]
     deriving (Show, Eq)
 
 pPreprocessor0 :: Parser [String]
@@ -80,7 +69,7 @@ pParse = do
     _ <- lSpaceConsm
     ast <- manyTill pStatm eof
     ast' <- filter (/= TNothing) <$> cNameConversions ast
-    return $ repeatc cLastConversions $ repeatc cConversions ast'
+    return $ repeatc cConversions ast'
     where
         repeatc :: (TAst -> TAst) -> TAst -> TAst
         repeatc f a =
@@ -109,7 +98,11 @@ pIncld = try $ do
 
 pExprs :: Parser TExprs
 pExprs
-    =   pMachineData
+    =   pLazy
+    <|> pIfThenElse
+    <|> pRetrn
+    <|> pExtCall
+    <|> pAlloc
     <|> pLambd
     <|> pSubtt
     <|> pApplc
@@ -117,29 +110,44 @@ pExprs
     <|> pIdent
 pUnitExprs :: Parser TExprs
 pUnitExprs
-    =   pMachineData
+    =   pLazy
+    <|> pIfThenElse
+    <|> pRetrn
+    <|> pExtCall
+    <|> pAlloc
     <|> pLambd
     <|> pParnt
     <|> pIdent
-pMachineData :: Parser TExprs
-pMachineData = try $ do
-    (x : xs) <- char '`' >> lIdent
-    case x of
-        'd' -> let ret = readDec xs in case ret of
-            [(n, _)] -> return $ TIntLitrl n
-            _ -> empty
-        'h' -> let ret = readHex xs in case ret of
-            [(n, _)] -> return $ TIntLitrl n
-            _ -> empty
-        'b' -> let ret = readBin xs in case ret of
-            [(n, _)] -> return $ TIntLitrl n
-            _ -> empty
-        'o' -> let ret = readOct xs in case ret of
-            [(n, _)] -> return $ TIntLitrl n
-            _ -> empty
-        '\'' -> return $ TCharLitrl (head xs)
-        '\"' -> return $ TStrngLitrl xs
-        _ -> empty
+pLazy :: Parser TExprs
+pLazy = try $ do
+    _ <- lSymbl "~"
+    e0 <- pExprs
+    return $ TLazy e0
+pIfThenElse :: Parser TExprs
+pIfThenElse = try $ do
+    _ <- lSymbl "if"
+    e0 <- pParnt
+    _ <- lSymbl "then"
+    e1 <- pParnt
+    _ <- lSymbl "else"
+    e2 <- pParnt
+    return $ TIfThenElse (TLazy e0) (TLazy e1) (TLazy e2)
+pRetrn :: Parser TExprs
+pRetrn = try $ do
+    _ <- lSymbl "retrn"
+    e0 <- pExprs
+    return $ TRetrn e0
+pExtCall :: Parser TExprs
+pExtCall = try $ do
+    _ <- lSymbl "extcall"
+    e0 <- pExprs
+    e1 <- many pParnt
+    return $ TExtCall e0 e1
+pAlloc :: Parser TExprs
+pAlloc = try $ do
+    _ <- lSymbl "alloc"
+    e0 <- pExprs
+    return $ TAlloc e0
 pLambd :: Parser TExprs
 pLambd = try $ do
     _ <- lSymbl "\\"
@@ -186,6 +194,14 @@ cDeBruijn' (TExprs e0) =
     in TExprs e0'
 cDeBruijn' s0 = s0
 cDeBruijn :: TExprs -> [TExprs] -> TExprs
+cDeBruijn (TLazy e0) bvs =
+    let e0' = cDeBruijn e0 bvs
+    in TLazy e0'
+cDeBruijn (TIfThenElse e0 e1 e2) bvs =
+    let e0' = cDeBruijn e0 bvs
+        e1' = cDeBruijn e1 bvs
+        e2' = cDeBruijn e2 bvs
+    in TIfThenElse e0' e1' e2'
 cDeBruijn (TLambd i0 e0) bvs =
     let e0' = cDeBruijn e0 (i0 : bvs)
     in TDBLambd e0'
@@ -202,6 +218,9 @@ cDeBruijn (TIdent s0) bvs =
     in case i of
         Just i' -> TDBIdent i'
         Nothing -> TIdent s0
+cDeBruijn (TRetrn e0) bvs =
+    let e0' = cDeBruijn e0 bvs
+    in TRetrn e0'
 cDeBruijn e0 _ = e0
 
 cNameConversions :: TAst -> Parser TAst
@@ -219,6 +238,14 @@ cNameConversion' (TExprs e0) = do
     return $ TExprs e0'
 cNameConversion' s0 = return s0
 cNameConversion :: TExprs -> Parser TExprs
+cNameConversion (TLazy e0) = do
+    e0' <- cNameConversion e0
+    return $ TLazy e0'
+cNameConversion (TIfThenElse e0 e1 e2) = do
+    e0' <- cNameConversion e0
+    e1' <- cNameConversion e1
+    e2' <- cNameConversion e2
+    return $ TIfThenElse e0' e1' e2'
 cNameConversion (TLambd i0 e0) = do
     e0' <- cNameConversion e0
     return $ TLambd i0 e0'
@@ -242,6 +269,9 @@ cNameConversion (TIdent s0) = case readMaybe s0 of
         convertNum :: Int -> TExprs -> TExprs
         convertNum 0 e0 = e0
         convertNum n e0 = convertNum (n - 1) (TApplc (TIdent "f") e0)
+cNameConversion (TRetrn e0) = do
+    e0' <- cNameConversion e0
+    return $ TRetrn e0'
 cNameConversion e0 = return e0
 
 cConversions :: TAst -> TAst
@@ -259,7 +289,7 @@ cConversion :: TExprs -> TExprs
 cConversion (TDBLambd e0) =
     let e0' = cConversion e0
     in TDBLambd e0'
-cConversion (TSubtt e0 i0 e1) = case e0 of
+cConversion (TSubtt e0 i0 e1) = case e0 of -- Maybe I should add TLazy and TIfThenElse????
     TDBLambd _ -> subtitution e0 i0 e1
     TApplc _ _ -> subtitution e0 i0 e1
     TIdent _ -> subtitution e0 i0 e1
@@ -314,88 +344,3 @@ cConversion (TApplc e0 e1) = case e0 of
             if i0 == d then TDBIdent d else TDBIdent i0
         shifting e0 _ = e0
 cConversion e0 = e0
-
-cLastConversions :: TAst -> TAst
-cLastConversions a = [cLastConversion' s | s <- a]
-cLastConversion' :: TStatm -> TStatm
-cLastConversion' (TConstDeclr i0 e0) =
-    let i0' = cLastConversion i0
-        e0' = cLastConversion e0
-    in TConstDeclr i0' e0'
-cLastConversion' (TExprs e0) =
-    let e0' = cLastConversion e0
-    in TExprs e0'
-cLastConversion' s0 = s0
-cLastConversion :: TExprs -> TExprs
-cLastConversion (TDBLambd e0) =
-    let e0' = cLastConversion e0
-    in TDBLambd e0'
-cLastConversion (TApplc e0 e1) = do
-    let (op, ops) = convert (TApplc e0 e1) []
-    let tmp = primitive op ops in
-        if tmp == op then
-            let e0' = cLastConversion e0
-                e1' = cLastConversion e1
-                in TApplc e0' e1'
-        else tmp
-    where
-        convert (TApplc e0 e1) args = convert e0 (e1 : args)
-        convert leaf args = (leaf, args)
-        primitive (TIdent "`retrn") (a : _) =
-            let a' = cLastConversion a
-            in TRetrn a'
-        primitive (TIdent "`argc") _ = TArgc
-        primitive (TIdent "`argv") (a : _) =
-            let a' = cLastConversion a
-            in TArgv a'
-        primitive (TIdent "`readMem") (a : b : _) =
-            let a' = cLastConversion a
-                b' = cLastConversion b
-            in TReadMem a' b'
-        primitive (TIdent "`writeMem") (a : b : c : _) =
-            let a' = cLastConversion a
-                b' = cLastConversion b
-                c' = cLastConversion c
-            in TWriteMem a' b' c'
-        primitive (TIdent "`extcall") (a : b) =
-            let a' = cLastConversion a
-                b' = map cLastConversion b
-            in TExtCall a' b'
-        primitive (TIdent "`alloc") (a : _) =
-            let a' = cLastConversion a
-            in TAlloc a'
-        primitive (TIdent "`+") a =
-            let a' = map cLastConversion a
-            in TAddtt a'
-        primitive (TIdent "`-") a =
-            let a' = map cLastConversion a
-            in TSubtr a'
-        primitive (TIdent "`*") a = 
-            let a' = map cLastConversion a
-            in TMultp a'
-        primitive (TIdent "`/") a =
-            let a' = map cLastConversion a
-            in TDivsn a'
-        primitive (TIdent "`%") a =
-            let a' = map cLastConversion a
-            in TModl a'
-        primitive e0 _ = e0
-cLastConversion (TIdent s0) = TIdent s0
-cLastConversion (TDBIdent i0) = TDBIdent i0
-cLastConversion (TRetrn e0) =
-    let e0' = cLastConversion e0
-    in TRetrn e0'
-cLastConversion TArgc = TArgc
-cLastConversion (TArgv e0) = 
-    let e0' = cLastConversion e0
-    in TArgv e0'
-cLastConversion (TReadMem e0 e1) =
-    let e0' = cLastConversion e0
-        e1' = cLastConversion e1
-    in TReadMem e0' e1'
-cLastConversion (TWriteMem e0 e1 e2) =
-    let e0' = cLastConversion e0
-        e1' = cLastConversion e1
-        e2' = cLastConversion e2
-    in TWriteMem e0' e1' e2'
-cLastConversion e0 = e0
