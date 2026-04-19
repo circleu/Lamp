@@ -9,35 +9,36 @@ import Parser
 -- Fn, Sn, Header, FnHeader
 type CodeGenerator a = State (Int, Int, [String], [String]) a
 
-cgDeclareF a = "DECLAREF(" ++ a ++ ")"
-cgDefineFn0 a b = "DEFINEF0(" ++ a ++ "," ++ b ++ ")"
-cgDefineFn1 a b = "DEFINEF1(" ++ a ++ "," ++ b ++ ")"
-cgDefineVn a b = "DEFINEV(" ++ a ++ "," ++ b ++ ")"
-cgCCreat a b = "CCREAT(" ++ a ++ "," ++ b ++ ")"
-cgApply a b = "APPLY(" ++ a ++ "," ++ b ++ ")"
-cgLookup a = "LOOKUP(" ++ show a ++ ")"
-cgReturn a = "RETURN(" ++ a ++ ")"
-cgArgc = "ARGC"
-cgArgv a = "ARGV(" ++ a ++ ")"
-cgReadSize "1" a = "READSIZE1(" ++ a ++ ")"
-cgReadSize "2" a = "READSIZE2(" ++ a ++ ")"
-cgReadSize "4" a = "READSIZE4(" ++ a ++ ")"
-cgReadSize "8" a = "READSIZE8(" ++ a ++ ")"
+cgDeclareF a = "__LAMPHEADERDATA_DECLAREF(" ++ a ++ ")"
+cgDefineFn0 a b = "__LAMPHEADERDATA_DEFINEF0(" ++ a ++ "," ++ b ++ ")"
+cgDefineFn1 a b = "__LAMPHEADERDATA_DEFINEF1(" ++ a ++ "," ++ b ++ ")"
+cgDefineVn a b = "__LAMPHEADERDATA_DEFINEV(" ++ a ++ "," ++ b ++ ")"
+cgCCreat a b = "__LAMPHEADERDATA_CCREAT(" ++ a ++ "," ++ b ++ ")"
+cgApply a b = "__LAMPHEADERDATA_APPLY(" ++ a ++ "," ++ b ++ ")"
+cgLookup a = "__LAMPHEADERDATA_LOOKUP(" ++ show a ++ ")"
+cgReturn a = "__LAMPHEADERDATA_RETURN(" ++ a ++ ")"
+cgArgc = "__LAMPHEADERDATA_ARGC"
+cgArgv a = "__LAMPHEADERDATA_ARGV(" ++ a ++ ")"
+cgReadSize "1" a = "__LAMPHEADERDATA_READSIZE1(" ++ a ++ ")"
+cgReadSize "2" a = "__LAMPHEADERDATA_READSIZE2(" ++ a ++ ")"
+cgReadSize "4" a = "__LAMPHEADERDATA_READSIZE4(" ++ a ++ ")"
+cgReadSize "8" a = "__LAMPHEADERDATA_READSIZE8(" ++ a ++ ")"
 cgReadSize _ _ = ""
-cgWriteSize "1" a b = "WRITESIZE1(" ++ a ++ "," ++ b ++ ")"
-cgWriteSize "2" a b = "WRITESIZE2(" ++ a ++ "," ++ b ++ ")"
-cgWriteSize "4" a b = "WRITESIZE4(" ++ a ++ "," ++ b ++ ")"
-cgWriteSize "8" a b = "WRITESIZE8(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize "1" a b = "__LAMPHEADERDATA_WRITESIZE1(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize "2" a b = "__LAMPHEADERDATA_WRITESIZE2(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize "4" a b = "__LAMPHEADERDATA_WRITESIZE4(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize "8" a b = "__LAMPHEADERDATA_WRITESIZE8(" ++ a ++ "," ++ b ++ ")"
 cgWriteSize _ _ _ = ""
-cgWrapper a = "WRAPPER(" ++ a ++ ")"
-cgDeclareExt a b = "DECLAREXT(" ++ a ++ "," ++ b ++ ")"
-cgExtCall a b = "EXTCALL(" ++ a ++ "," ++ b ++ ")"
-cgDefineS a b = "DEFINES(" ++ a ++ "," ++ b ++ ")"
-cgGetS a = "GETS(" ++ a ++ ")"
-cgDefineC a b = "DEFINEC(" ++ a ++ "," ++ b ++ ")"
-cgDecode a = "DECODE(" ++ a ++ ")"
-cgIfThenElse a b c = "IFTHENELSE(" ++ a ++ "," ++ b ++ "," ++ c ++ ")"
-cgCheckTF a = "CHECKTF(" ++ a ++ ")"
+cgWrapper a = "__LAMPHEADERDATA_WRAPPER(" ++ a ++ ")"
+cgDeclareExt a b = "__LAMPHEADERDATA_DECLAREXT(" ++ a ++ "," ++ b ++ ")"
+cgExtCall a b = "__LAMPHEADERDATA_EXTCALL(" ++ a ++ "," ++ b ++ ")"
+cgDefineS a b = "__LAMPHEADERDATA_DEFINES(" ++ a ++ "," ++ b ++ ")"
+cgGetS a = "__LAMPHEADERDATA_GETS(" ++ a ++ ")"
+cgDefineC a b = "__LAMPHEADERDATA_DEFINEC(" ++ a ++ "," ++ b ++ ")"
+cgDecode a = "__LAMPHEADERDATA_DECODE(" ++ a ++ ")"
+cgIfThenElse a b c = "__LAMPHEADERDATA_IFTHENELSE(" ++ a ++ "," ++ b ++ "," ++ c ++ ")"
+cgCheckTF a = "__LAMPHEADERDATA_CHECKTF(" ++ a ++ ")"
+cgNameWrapper a = "__LAMPHEADERDATA_" ++ a
 
 cgConvert :: TAst -> IO String
 cgConvert a = do 
@@ -56,7 +57,6 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
     generate' (TExprs e0) = generate e0
     generate' _ = return ""
     generate :: TExprs -> CodeGenerator String
-    generate (TLazy e0) = generate e0
     generate (TIfThenElse e0 e1 e2) = do
         e0' <- generate e0
         e1' <- generate e1
@@ -65,8 +65,8 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
     generate (TDBLambd e0) = case e0 of
         TDBLambd _ -> do
             (c', _, _, _) <- get
-            let n = "f" ++ show c'
-                n' = "f" ++ show (c' + 1)
+            let n = "__LAMPHEADERDATA_f" ++ show c'
+                n' = "__LAMPHEADERDATA_f" ++ show (c' + 1)
             modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             let h' = cgDefineFn0 n n'
@@ -74,10 +74,10 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             modify (\(c, s, h, fh) -> (c, s, h' : h, fh' : fh))
 
             _ <- generate e0
-            return $ cgCCreat n "nenv"
+            return $ cgCCreat n "__LAMPHEADERDATA_nenv"
         TApplc e0 e1 -> do
             (c', _, _, _) <- get
-            let n = "f" ++ show c'
+            let n = "__LAMPHEADERDATA_f" ++ show c'
             modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             e0' <- generate e0
@@ -86,10 +86,10 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "nenv"
+            return $ cgCCreat n "__LAMPHEADERDATA_nenv"
         _ -> do
             (c', _, _, _) <- get
-            let n = "f" ++ show c'
+            let n = "__LAMPHEADERDATA_f" ++ show c'
             modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             e0' <- generate e0
@@ -97,10 +97,10 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "nenv"
+            return $ cgCCreat n "__LAMPHEADERDATA_nenv"
     generate (TApplc e0 e1) = do
         e0' <- generate e0
-        e1' <- generate e1 
+        e1' <- generate e1
         return $ cgApply e0' e1'
     generate (TIdent s0) = return s0
     generate (TDBIdent i0) = return $ cgLookup i0
@@ -112,7 +112,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
         let e0'' = drop 2 e0'
 
         e1' <- mapM generate e1
-        let e1'' = "(" ++ intercalate "," (replicate (length e1') "long int") ++ ")"
+        let e1'' = "(" ++ intercalate "," (replicate (length e1') "unsigned long int") ++ ")"
             fh' = cgDeclareExt e0'' e1''
         modify (\(c, s, h, fh) -> (c, s, h, fh' : fh))
 
@@ -120,7 +120,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
         return $ cgExtCall e0'' e1''
     generate (TAlloc e0) = do
         (_, s', _, _) <- get
-        let n = "s" ++ show s'
+        let n = "__LAMPHEADERDATA_s" ++ show s'
         modify (\(c, s, h, fh) -> (c, s + 1, h, fh))
 
         e0' <- generate e0

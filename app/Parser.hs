@@ -13,10 +13,13 @@ import Text.Read (readMaybe)
 type TNameList = [(TExprs, TExprs)]
 type Parser a = (StateT TNameList) (Parsec Void String) a
 type Converter a = StateT Int a
+lKeywords = ["if", "then", "else", "retrn", "alloc", "extcall"]
 
 lSpaceConsm = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 lSymbl = L.symbol lSpaceConsm
-lIdent = try $ some (noneOf "\n (){}[]#;") <* lSpaceConsm
+lIdent = do
+    result <- try $ some (noneOf "\n (){}[]#;") <* lSpaceConsm
+    if elem result lKeywords then try $ lSymbl "#" else return result
 
 type TAst = [TStatm]
 
@@ -28,8 +31,7 @@ data TStatm
     deriving (Show, Eq)
 
 data TExprs
-    = TLazy TExprs
-    | TIfThenElse TExprs TExprs TExprs
+    = TIfThenElse TExprs TExprs TExprs
     | TLambd TExprs TExprs
     | TSubtt TExprs TExprs TExprs
     | TApplc TExprs TExprs
@@ -69,12 +71,7 @@ pParse = do
     _ <- lSpaceConsm
     ast <- manyTill pStatm eof
     ast' <- filter (/= TNothing) <$> cNameConversions ast
-    return $ repeatc cConversions ast'
-    where
-        repeatc :: (TAst -> TAst) -> TAst -> TAst
-        repeatc f a =
-            let a' = f a
-            in if a' == a then a' else repeatc f a'
+    return $ ast'
 
 pStatm :: Parser TStatm
 pStatm = (pNameDeclr <|> pConstDeclr <|> pIncld <|> TExprs <$> pExprs) <* lSymbl ";"
@@ -98,8 +95,7 @@ pIncld = try $ do
 
 pExprs :: Parser TExprs
 pExprs
-    =   pLazy
-    <|> pIfThenElse
+    =   pIfThenElse
     <|> pRetrn
     <|> pExtCall
     <|> pAlloc
@@ -110,28 +106,22 @@ pExprs
     <|> pIdent
 pUnitExprs :: Parser TExprs
 pUnitExprs
-    =   pLazy
-    <|> pIfThenElse
+    =   pIfThenElse
     <|> pRetrn
     <|> pExtCall
     <|> pAlloc
     <|> pLambd
     <|> pParnt
     <|> pIdent
-pLazy :: Parser TExprs
-pLazy = try $ do
-    _ <- lSymbl "~"
-    e0 <- pExprs
-    return $ TLazy e0
 pIfThenElse :: Parser TExprs
 pIfThenElse = try $ do
     _ <- lSymbl "if"
-    e0 <- pParnt
+    e0 <- pExprs
     _ <- lSymbl "then"
-    e1 <- pParnt
+    e1 <- pExprs
     _ <- lSymbl "else"
-    e2 <- pParnt
-    return $ TIfThenElse (TLazy e0) (TLazy e1) (TLazy e2)
+    e2 <- pExprs
+    return $ TIfThenElse e0 e1 e2
 pRetrn :: Parser TExprs
 pRetrn = try $ do
     _ <- lSymbl "retrn"
@@ -194,9 +184,6 @@ cDeBruijn' (TExprs e0) =
     in TExprs e0'
 cDeBruijn' s0 = s0
 cDeBruijn :: TExprs -> [TExprs] -> TExprs
-cDeBruijn (TLazy e0) bvs =
-    let e0' = cDeBruijn e0 bvs
-    in TLazy e0'
 cDeBruijn (TIfThenElse e0 e1 e2) bvs =
     let e0' = cDeBruijn e0 bvs
         e1' = cDeBruijn e1 bvs
@@ -238,9 +225,6 @@ cNameConversion' (TExprs e0) = do
     return $ TExprs e0'
 cNameConversion' s0 = return s0
 cNameConversion :: TExprs -> Parser TExprs
-cNameConversion (TLazy e0) = do
-    e0' <- cNameConversion e0
-    return $ TLazy e0'
 cNameConversion (TIfThenElse e0 e1 e2) = do
     e0' <- cNameConversion e0
     e1' <- cNameConversion e1
@@ -249,10 +233,36 @@ cNameConversion (TIfThenElse e0 e1 e2) = do
 cNameConversion (TLambd i0 e0) = do
     e0' <- cNameConversion e0
     return $ TLambd i0 e0'
-cNameConversion (TSubtt e0 i0 e1) = do
-    e0' <- cNameConversion e0
-    e1' <- cNameConversion e1
-    return $ TSubtt e0' i0 e1'
+cNameConversion (TSubtt e0 i0 e1) = case e0 of
+    TLambd _ _ -> do
+        e1' <- cNameConversion e1
+        cNameConversion $ subtitution e0 i0 e1' []
+    _ -> do
+        e0' <- cNameConversion e0
+        e1' <- cNameConversion e1
+        return $ TSubtt e0' i0 e1'
+    where
+        subtitution :: TExprs -> TExprs -> TExprs -> [TExprs] -> TExprs
+        subtitution (TIfThenElse e0' e1' e2') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 bvs
+                e1'' = subtitution e1' i0 e1 bvs
+                e2'' = subtitution e2' i0 e1 bvs
+            in TIfThenElse e0'' e1'' e2''
+        subtitution (TLambd i0' e0') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 (i0' : bvs)
+            in TLambd i0' e0''
+        subtitution (TSubtt e0' i0' e1') _ _ _ = TSubtt e0' i0' e1'
+        subtitution (TApplc e0' e1') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 bvs
+                e1'' = subtitution e1' i0 e1 bvs
+            in TApplc e0'' e1''
+        subtitution (TIdent s0') i0 e1 bvs =
+            if elem (TIdent s0') bvs || TIdent s0' /= i0 then TIdent s0'
+            else e1
+        subtitution (TRetrn e0') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 bvs
+            in TRetrn e0''
+        subtitution e0 _ _ _ = e0
 cNameConversion (TApplc e0 e1) = do
     e0' <- cNameConversion e0
     e1' <- cNameConversion e1
@@ -273,74 +283,3 @@ cNameConversion (TRetrn e0) = do
     e0' <- cNameConversion e0
     return $ TRetrn e0'
 cNameConversion e0 = return e0
-
-cConversions :: TAst -> TAst
-cConversions a = [cConversion' s | s <- a]
-cConversion' :: TStatm -> TStatm
-cConversion' (TConstDeclr i0 e0) =
-    let i0' = cConversion i0
-        e0' = cConversion e0
-    in TConstDeclr i0' e0'
-cConversion' (TExprs e0) =
-    let e0' = cConversion e0
-    in TExprs e0'
-cConversion' s0 = s0
-cConversion :: TExprs -> TExprs
-cConversion (TDBLambd e0) =
-    let e0' = cConversion e0
-    in TDBLambd e0'
-cConversion (TSubtt e0 i0 e1) = case e0 of -- Maybe I should add TLazy and TIfThenElse????
-    TDBLambd _ -> subtitution e0 i0 e1
-    TApplc _ _ -> subtitution e0 i0 e1
-    TIdent _ -> subtitution e0 i0 e1
-    _ ->
-        let e0' = cConversion e0
-            e1' = cConversion e1
-        in TSubtt e0' i0 e1'
-    where
-        subtitution :: TExprs -> TExprs -> TExprs -> TExprs
-        subtitution (TDBLambd e0') i0 e0 =
-            let e0'' = subtitution e0' i0 e0
-            in TDBLambd e0''
-        subtitution (TApplc e0' e1') i0 e0 =
-            let e0'' = subtitution e0' i0 e0
-                e1'' = subtitution e1' i0 e0
-            in TApplc e0'' e1''
-        subtitution (TIdent s0') i0 e0 =
-            if TIdent s0' /= i0 then TIdent s0' else e0
-        subtitution e0 _ _ = e0
-cConversion (TApplc e0 e1) = case e0 of
-    TDBLambd _ -> shifting (application e0 e1 (-1)) 0
-    _ ->
-        let e0' = cConversion e0
-            e1' = cConversion e1
-        in TApplc e0' e1'
-    where
-        application :: TExprs -> TExprs -> Int -> TExprs
-        application (TDBLambd e0') e0 bv = 
-            let e0'' = application e0' e0 (bv + 1)
-            in if bv == -1 then e0''
-            else TDBLambd e0''
-        application (TApplc e0' e1') e0 bv =
-            let e0'' = application e0' e0 bv
-                e1'' = application e1' e0 bv
-            in TApplc e0'' e1''
-        application (TDBIdent i0') e0 bv =
-            if i0' == bv then e0 else TDBIdent i0'
-        application e0 _ _ = e0
-        shifting :: TExprs -> Int -> TExprs
-        shifting (TDBLambd e0) d =
-            let e0' = shifting e0 (d + 1)
-            in TDBLambd e0'
-        shifting (TSubtt e0 i0 e1) d =
-            let e0' = shifting e0 d
-                e1' = shifting e1 d
-            in TSubtt e0' i0 e1'
-        shifting (TApplc e0 e1) d =
-            let e0' = shifting e0 d
-                e1' = shifting e1 d
-            in TApplc e0' e1'
-        shifting (TDBIdent i0) d = do
-            if i0 == d then TDBIdent d else TDBIdent i0
-        shifting e0 _ = e0
-cConversion e0 = e0

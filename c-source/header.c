@@ -1,140 +1,135 @@
-#define NULL ((void*)0)
-#define REGION_SIZE (0x10000)
+#include <stdio.h>
 
-#define DECLAREF(a) CLOSURE* a(CLOSURE* this, CLOSURE* arg);
-#define DEFINEF0(a, b)\
-CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
-    ENVIRONMENT* nenv = extenv(this->env, arg);\
-    return ccreat(b, nenv);\
+#define __LAMPHEADERDATA_NULL ((void*)0)
+#define __LAMPHEADERDATA_REGION_SIZE (0x4000)
+
+#define __LAMPHEADERDATA_DECLAREF(a) __LAMPHEADERDATA_CLOSURE* a(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_this, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg);
+#define __LAMPHEADERDATA_DEFINEF0(a, b)\
+__LAMPHEADERDATA_CLOSURE* a(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_this, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg) {\
+    __LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_nenv = __LAMPHEADERDATA_extenv(__LAMPHEADERDATA_this->env, __LAMPHEADERDATA_arg);\
+    return __LAMPHEADERDATA_ccreat(b, __LAMPHEADERDATA_nenv);\
 }
-#define DEFINEF1(a, b)\
-CLOSURE* a(CLOSURE* this, CLOSURE* arg) {\
-    ENVIRONMENT* nenv = extenv(this->env, arg);\
+#define __LAMPHEADERDATA_DEFINEF1(a, b)\
+__LAMPHEADERDATA_CLOSURE* a(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_this, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg) {\
+    __LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_nenv = __LAMPHEADERDATA_extenv(__LAMPHEADERDATA_this->env, __LAMPHEADERDATA_arg);\
     b\
 }
-#define DEFINEV(a, b) CLOSURE* a = b;
-#define CCREAT(a, b) ccreat(a, b)
-#define APPLY(a, b) apply(a, b)
-#define LOOKUP(a) lookup(nenv, a)
-#define RETURN(a) return a;
-#define ARGC argc
-#define ARGV(a) argv[a]
-#define SIZE1 volatile unsigned char
-#define SIZE2 volatile unsigned short int
-#define SIZE4 volatile unsigned int
-#define SIZE8 volatile unsigned long int
-#define READSIZE1(a) *(SIZE1 *)a
-#define READSIZE2(a) *(SIZE2 *)a
-#define READSIZE4(a) *(SIZE4 *)a
-#define READSIZE8(a) *(SIZE8 *)a
-#define WRITESIZE1(a, b) *(SIZE1 *)a = b
-#define WRITESIZE2(a, b) *(SIZE2 *)a = b
-#define WRITESIZE4(a, b) *(SIZE4 *)a = b
-#define WRITESIZE8(a, b) *(SIZE8 *)a = b
-#define WRAPPER(a) int main(int argc, char** argv) {ENVIRONMENT* nenv = NULL; a}
-#define DECLAREXT(a, b) extern unsigned long int a b;
-#define EXTCALL(a, b) a b
-#define DEFINES(a, b) char a[b] = {0, };
-#define GETS(a) &a[0]
-#define DEFINEC(a, b) unsigned long int a = b;
-#define DECODE(a) decode_church(a)
-#define IFTHENELSE(a, b, c) (a ? b : c)
-#define CHECKTF(a) check_tf(a)
+#define __LAMPHEADERDATA_DEFINEV(a, b) __LAMPHEADERDATA_CLOSURE* a = b;
+#define __LAMPHEADERDATA_CCREAT(a, b) __LAMPHEADERDATA_ccreat(a, b)
+#define __LAMPHEADERDATA_APPLY(a, b) __LAMPHEADERDATA_apply(a, b)
+#define __LAMPHEADERDATA_LOOKUP(a) __LAMPHEADERDATA_lookup(__LAMPHEADERDATA_nenv, a)
+#define __LAMPHEADERDATA_RETURN(a) return a;
+#define __LAMPHEADERDATA_ARGC argc
+#define __LAMPHEADERDATA_ARGV(a) argv[a]
+#define __LAMPHEADERDATA_SIZE1 volatile unsigned char
+#define __LAMPHEADERDATA_SIZE2 volatile unsigned short int
+#define __LAMPHEADERDATA_SIZE4 volatile unsigned int
+#define __LAMPHEADERDATA_SIZE8 volatile unsigned long int
+#define __LAMPHEADERDATA_READSIZE1(a) *(__LAMPHEADERDATA_SIZE1 *)a
+#define __LAMPHEADERDATA_READSIZE2(a) *(__LAMPHEADERDATA_SIZE2 *)a
+#define __LAMPHEADERDATA_READSIZE4(a) *(__LAMPHEADERDATA_SIZE4 *)a
+#define __LAMPHEADERDATA_READSIZE8(a) *(__LAMPHEADERDATA_SIZE8 *)a
+#define __LAMPHEADERDATA_WRITESIZE1(a, b) *(__LAMPHEADERDATA_SIZE1 *)a = b
+#define __LAMPHEADERDATA_WRITESIZE2(a, b) *(__LAMPHEADERDATA_SIZE2 *)a = b
+#define __LAMPHEADERDATA_WRITESIZE4(a, b) *(__LAMPHEADERDATA_SIZE4 *)a = b
+#define __LAMPHEADERDATA_WRITESIZE8(a, b) *(__LAMPHEADERDATA_SIZE8 *)a = b
+#define __LAMPHEADERDATA_WRAPPER(a) int main(int argc, char** argv) {__LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_nenv = __LAMPHEADERDATA_NULL; a; printf("rptr %d\n", __LAMPHEADERDATA_rptr);}
+#define __LAMPHEADERDATA_DECLAREXT(a, b) extern unsigned long int a b;
+#define __LAMPHEADERDATA_EXTCALL(a, b) a b
+#define __LAMPHEADERDATA_DEFINES(a, b) unsigned char a[b] = {0, };
+#define __LAMPHEADERDATA_GETS(a) &a[0]
+#define __LAMPHEADERDATA_DEFINEC(a, b) unsigned long int a = (unsigned long int)b;
+#define __LAMPHEADERDATA_DECODE(a) __LAMPHEADERDATA_decode_church((__LAMPHEADERDATA_CLOSURE*)a)
+#define __LAMPHEADERDATA_IFTHENELSE(a, b, c) (a ? b : c)
+#define __LAMPHEADERDATA_CHECKTF(a) __LAMPHEADERDATA_check_tf(a)
 
 
-//
-typedef unsigned long int size_t;
+typedef struct __LAMPHEADERDATA__CLOSURE {
+    struct __LAMPHEADERDATA__CLOSURE* (*fn)(struct __LAMPHEADERDATA__CLOSURE*, struct __LAMPHEADERDATA__CLOSURE*);
+    struct __LAMPHEADERDATA__ENVIRONMENT* env;
+} __LAMPHEADERDATA_CLOSURE;
+typedef struct __LAMPHEADERDATA__ENVIRONMENT {
+    struct __LAMPHEADERDATA__CLOSURE* value;
+    struct __LAMPHEADERDATA__ENVIRONMENT* next;
+} __LAMPHEADERDATA_ENVIRONMENT;
 
-void kmemcpy(void* s1, void* s2, size_t n) {
-    for (size_t i = 0; i < n; i++) {
-        ((char*)s1)[i] = ((char*)s2)[i];
+unsigned char __LAMPHEADERDATA_region[__LAMPHEADERDATA_REGION_SIZE] = {0, };
+unsigned int __LAMPHEADERDATA_rptr = 0;
+__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_tmp = __LAMPHEADERDATA_NULL;
+
+void __LAMPHEADERDATA_memcpy(void* __LAMPHEADERDATA_s1, void* __LAMPHEADERDATA_s2, unsigned long int __LAMPHEADERDATA_n) {
+    for (unsigned long int __LAMPHEADERDATA_i = 0; __LAMPHEADERDATA_i < __LAMPHEADERDATA_n; __LAMPHEADERDATA_i++) {
+        ((char*)__LAMPHEADERDATA_s1)[__LAMPHEADERDATA_i] = ((char*)__LAMPHEADERDATA_s2)[__LAMPHEADERDATA_i];
     }
 }
-void kmemset(void* s, char c, size_t n) {
-    for (size_t i = 0; i < n; i++) {
-        ((char*)s)[i] = c;
+void __LAMPHEADERDATA_memset(void* __LAMPHEADERDATA_s, char __LAMPHEADERDATA_c, unsigned long int __LAMPHEADERDATA_n) {
+    for (unsigned long int __LAMPHEADERDATA_i = 0; __LAMPHEADERDATA_i < __LAMPHEADERDATA_n; __LAMPHEADERDATA_i++) {
+        ((char*)__LAMPHEADERDATA_s)[__LAMPHEADERDATA_i] = __LAMPHEADERDATA_c;
     }
 }
-
-//
-typedef struct _CLOSURE {
-    struct _CLOSURE* (*fn)(struct _CLOSURE* this, struct _CLOSURE* args);
-    struct _ENVIRONMENT* env;
-} CLOSURE;
-typedef struct _ENVIRONMENT {
-    struct _CLOSURE* value;
-    struct _ENVIRONMENT* next;
-    unsigned long int c;
-} ENVIRONMENT;
-
-extern char region[REGION_SIZE];
-extern unsigned int rptr;
-void* kmalloc(size_t size) {
-    unsigned int ret = rptr;
-    rptr += size;
-    return &region[ret];
+void* __LAMPHEADERDATA_malloc(unsigned long int __LAMPHEADERDATA_size) {
+    unsigned int __LAMPHEADERDATA_ret = __LAMPHEADERDATA_rptr;
+    __LAMPHEADERDATA_rptr += __LAMPHEADERDATA_size;
+    return &__LAMPHEADERDATA_region[__LAMPHEADERDATA_ret];
 }
-void kfreal() {
-    kmemset(region, 0, REGION_SIZE);
-    rptr = 0;
+void __LAMPHEADERDATA_freal() {
+    __LAMPHEADERDATA_memset(__LAMPHEADERDATA_region, 0, __LAMPHEADERDATA_REGION_SIZE);
+    __LAMPHEADERDATA_rptr = 0;
 }
-
-ENVIRONMENT* extenv(ENVIRONMENT* env, CLOSURE* args) {
-    if (env == NULL) {
-        env = kmalloc(sizeof(ENVIRONMENT));
-        env->next = NULL;
-        env->value = args;
-        return env;
+__LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_extenv(__LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_env, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_args) {
+    if (__LAMPHEADERDATA_env == __LAMPHEADERDATA_NULL) {
+        __LAMPHEADERDATA_env = __LAMPHEADERDATA_malloc(sizeof(__LAMPHEADERDATA_ENVIRONMENT));
+        __LAMPHEADERDATA_env->next = __LAMPHEADERDATA_NULL;
+        __LAMPHEADERDATA_env->value = __LAMPHEADERDATA_args;
+        return __LAMPHEADERDATA_env;
     }
     else {
-        ENVIRONMENT* nenv = kmalloc(sizeof(ENVIRONMENT));
-        nenv->value = args;
-        nenv->next = env;
-        return nenv;
+        __LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_nenv = __LAMPHEADERDATA_malloc(sizeof(__LAMPHEADERDATA_ENVIRONMENT));
+        __LAMPHEADERDATA_nenv->value = __LAMPHEADERDATA_args;
+        __LAMPHEADERDATA_nenv->next = __LAMPHEADERDATA_env;
+        return __LAMPHEADERDATA_nenv;
     }
 }
-CLOSURE* ccreat(CLOSURE* (*c)(CLOSURE* this, CLOSURE* arg), ENVIRONMENT* nenv) {
-    CLOSURE* ret = kmalloc(sizeof(CLOSURE));
-    ret->fn = c;
-    ret->env = nenv;
-    return ret;
+__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_ccreat(__LAMPHEADERDATA_CLOSURE* (*__LAMPHEADERDATA_c)(__LAMPHEADERDATA_CLOSURE*, __LAMPHEADERDATA_CLOSURE*), __LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_nenv) {
+    __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_ret = __LAMPHEADERDATA_malloc(sizeof(__LAMPHEADERDATA_CLOSURE));
+    __LAMPHEADERDATA_ret->fn = __LAMPHEADERDATA_c;
+    __LAMPHEADERDATA_ret->env = __LAMPHEADERDATA_nenv;
+    return __LAMPHEADERDATA_ret;
 }
-CLOSURE* apply(CLOSURE* arg0, CLOSURE* arg1) {
-    return arg0->fn(arg0, arg1);
+__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_apply(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg0, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg1) {
+    return __LAMPHEADERDATA_arg0->fn(__LAMPHEADERDATA_arg0, __LAMPHEADERDATA_arg1);
 }
-CLOSURE* lookup(ENVIRONMENT* env, unsigned long depth) {
-    if (depth > 0) {
-        return lookup(env->next, depth - 1);
+__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_lookup(__LAMPHEADERDATA_ENVIRONMENT* __LAMPHEADERDATA_env, unsigned long __LAMPHEADERDATA_depth) {
+    if (__LAMPHEADERDATA_depth > 0) {
+        return __LAMPHEADERDATA_lookup(__LAMPHEADERDATA_env->next, __LAMPHEADERDATA_depth - 1);
     }
     else {
-        return env->value;
+        return __LAMPHEADERDATA_env->value;
     }
 
 }
-CLOSURE* self(CLOSURE* this, CLOSURE* arg) {
-    return this;
+__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_self(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_this, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg) {
+    return __LAMPHEADERDATA_this;
 }
-CLOSURE* church(CLOSURE* this, CLOSURE* arg) {
-    unsigned long int* cptr = (unsigned long int*)this->env;
-    (*cptr)++;
-    return this;
+__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_church(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_this, __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_arg) {
+    unsigned long int* __LAMPHEADERDATA_cptr = (unsigned long int*)__LAMPHEADERDATA_this->env;
+    (*__LAMPHEADERDATA_cptr)++;
+    return __LAMPHEADERDATA_this;
 }
-unsigned long int decode_church(CLOSURE* num) {
-    unsigned int init = rptr;
-    unsigned long int c = 0;
-    CLOSURE* counter = ccreat(church, (ENVIRONMENT*)&c);
-    CLOSURE* dummy = ccreat(self, NULL);
-    apply(apply(num, counter), dummy);
-    rptr = init;
-    return c;
+unsigned long int __LAMPHEADERDATA_decode_church(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_num) {
+    unsigned int __LAMPHEADERDATA_init = __LAMPHEADERDATA_rptr;
+    unsigned long int __LAMPHEADERDATA_c = 0;
+    __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_counter = __LAMPHEADERDATA_ccreat(__LAMPHEADERDATA_church, (__LAMPHEADERDATA_ENVIRONMENT*)&__LAMPHEADERDATA_c);
+    __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_dummy = __LAMPHEADERDATA_ccreat(__LAMPHEADERDATA_self, __LAMPHEADERDATA_NULL);
+    __LAMPHEADERDATA_APPLY(__LAMPHEADERDATA_APPLY(__LAMPHEADERDATA_num, __LAMPHEADERDATA_counter), __LAMPHEADERDATA_dummy);
+    __LAMPHEADERDATA_rptr = __LAMPHEADERDATA_init;
+    return __LAMPHEADERDATA_c;
 }
-char check_tf(CLOSURE* cond) {
-    const char t = 1;
-    const char f = 0;
-    CLOSURE* ctrue = ccreat(self, (ENVIRONMENT*)&t);
-    CLOSURE* cfalse = ccreat(self, (ENVIRONMENT*)&f);
-    char* result = (char*)apply(apply(cond, ctrue), cfalse)->env;
-    return *result;
+unsigned char __LAMPHEADERDATA_check_tf(__LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_cond) {
+    const unsigned char __LAMPHEADERDATA_t = 1;
+    const unsigned char __LAMPHEADERDATA_f = 0;
+    __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_ctrue = __LAMPHEADERDATA_ccreat(__LAMPHEADERDATA_self, (__LAMPHEADERDATA_ENVIRONMENT*)&__LAMPHEADERDATA_t);
+    __LAMPHEADERDATA_CLOSURE* __LAMPHEADERDATA_cfalse = __LAMPHEADERDATA_ccreat(__LAMPHEADERDATA_self, (__LAMPHEADERDATA_ENVIRONMENT*)&__LAMPHEADERDATA_f);
+    unsigned char* __LAMPHEADERDATA_result = (unsigned char*)__LAMPHEADERDATA_APPLY(__LAMPHEADERDATA_APPLY(__LAMPHEADERDATA_cond, __LAMPHEADERDATA_ctrue), __LAMPHEADERDATA_cfalse)->env;
+    return *__LAMPHEADERDATA_result;
 }
-char region[REGION_SIZE] = {0, };
-unsigned int rptr = 0;
