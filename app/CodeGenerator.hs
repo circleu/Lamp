@@ -13,7 +13,7 @@ cgDeclareF a = "__LAMPHEADERDATA_DECLAREF(" ++ a ++ ")"
 cgDefineFn0 a b = "__LAMPHEADERDATA_DEFINEF0(" ++ a ++ "," ++ b ++ ")"
 cgDefineFn1 a b = "__LAMPHEADERDATA_DEFINEF1(" ++ a ++ "," ++ b ++ ")"
 cgDefineVn a b = "__LAMPHEADERDATA_DEFINEV(" ++ a ++ "," ++ b ++ ")"
-cgCCreat a b = "__LAMPHEADERDATA_CCREAT(" ++ a ++ "," ++ b ++ ")"
+cgCCreat a b c = "__LAMPHEADERDATA_CCREAT(" ++ a ++ "," ++ b ++ "," ++ c ++ ")"
 cgApply a b = "__LAMPHEADERDATA_APPLY(" ++ a ++ "," ++ b ++ ")"
 cgLookup a = "__LAMPHEADERDATA_LOOKUP(" ++ show a ++ ")"
 cgReturn a = "__LAMPHEADERDATA_RETURN(" ++ a ++ ")"
@@ -57,6 +57,18 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
     generate' (TExprs e0) = generate e0
     generate' _ = return ""
     generate :: TExprs -> CodeGenerator String
+    generate (TNatvInt i0) = do
+        return $ cgCCreat "__LAMPHEADERDATA_NULL" i0 "1"
+    generate (TAddtt (TNatvInt s0)) = do
+        return $ cgCCreat "__LAMPHEADERDATA_add" s0 "1"
+    generate (TSubtr (TNatvInt s0)) = do
+        return $ cgCCreat "__LAMPHEADERDATA_sub" s0 "1"
+    generate (TMultp (TNatvInt s0)) = do
+        return $ cgCCreat "__LAMPHEADERDATA_mul" s0 "1"
+    generate (TDivsn (TNatvInt s0)) = do
+        return $ cgCCreat "__LAMPHEADERDATA_div" s0 "1"
+    generate (TModl (TNatvInt s0)) = do
+        return $ cgCCreat "__LAMPHEADERDATA_mod" s0 "1"
     generate (TIfThenElse e0 e1 e2) = do
         e0' <- generate e0
         e1' <- generate e1
@@ -74,7 +86,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             modify (\(c, s, h, fh) -> (c, s, h' : h, fh' : fh))
 
             _ <- generate e0
-            return $ cgCCreat n "__LAMPHEADERDATA_nenv"
+            return $ cgCCreat n "__LAMPHEADERDATA_nenv" "0"
         TApplc e0 e1 -> do
             (c', _, _, _) <- get
             let n = "__LAMPHEADERDATA_f" ++ show c'
@@ -86,7 +98,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "__LAMPHEADERDATA_nenv"
+            return $ cgCCreat n "__LAMPHEADERDATA_nenv" "0"
         _ -> do
             (c', _, _, _) <- get
             let n = "__LAMPHEADERDATA_f" ++ show c'
@@ -97,7 +109,7 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "__LAMPHEADERDATA_nenv"
+            return $ cgCCreat n "__LAMPHEADERDATA_nenv" "0"
     generate (TApplc e0 e1) = do
         e0' <- generate e0
         e1' <- generate e1

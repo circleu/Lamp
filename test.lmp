@@ -2,8 +2,9 @@
 
 
 -- asdf = alloc 0x230;
-(HEAD (MAP (ADD 1) (CONS 1 (CONS 2 (CONS 3 (CONS 4 NIL))))));
+-- (HEAD (MAP (ADD 1) (CONS 1 (CONS 2 (CONS 3 (CONS 4 NIL))))));
 -- retrn if (ISNIL NIL) then 2 else 3;
 -- retrn ADD 1 2;
 
 -- (\x .\y .\z .x t y ((\y .y f)[f := t]) x z)[t := s];
+retrn `+ `1 `2 `3 `4 `5;

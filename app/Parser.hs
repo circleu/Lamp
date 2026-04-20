@@ -4,7 +4,7 @@ import Control.Monad.State.Strict (StateT, MonadState(get), modify, gets)
 import Data.List (elemIndex)
 import Data.Void (Void)
 import Text.Megaparsec (noneOf, manyTill, some, many, (<|>), Parsec, MonadParsec(try, eof))
-import Text.Megaparsec.Char (space1)
+import Text.Megaparsec.Char (space1, char)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Read (readMaybe)
 
@@ -18,7 +18,7 @@ lKeywords = ["if", "then", "else", "retrn", "alloc", "extcall"]
 lSpaceConsm = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 lSymbl = L.symbol lSpaceConsm
 lIdent = do
-    result <- try $ some (noneOf "\n (){}[]#;") <* lSpaceConsm
+    result <- try $ some (noneOf "\n (){}[]#;`") <* lSpaceConsm
     if elem result lKeywords then try $ lSymbl "#" else return result
 
 type TAst = [TStatm]
@@ -31,7 +31,13 @@ data TStatm
     deriving (Show, Eq)
 
 data TExprs
-    = TIfThenElse TExprs TExprs TExprs
+    = TNatvInt String
+    | TAddtt TExprs
+    | TSubtr TExprs
+    | TMultp TExprs
+    | TDivsn TExprs
+    | TModl TExprs
+    | TIfThenElse TExprs TExprs TExprs
     | TLambd TExprs TExprs
     | TSubtt TExprs TExprs TExprs
     | TApplc TExprs TExprs
@@ -95,7 +101,7 @@ pIncld = try $ do
 
 pExprs :: Parser TExprs
 pExprs
-    =   pIfThenElse
+    =  pIfThenElse
     <|> pRetrn
     <|> pExtCall
     <|> pAlloc
@@ -103,6 +109,12 @@ pExprs
     <|> pSubtt
     <|> pApplc
     <|> pParnt
+    <|> pAddtt
+    <|> pSubtr
+    <|> pMultp
+    <|> pDivsn
+    <|> pModl
+    <|> pNatvInt
     <|> pIdent
 pUnitExprs :: Parser TExprs
 pUnitExprs
@@ -112,7 +124,42 @@ pUnitExprs
     <|> pAlloc
     <|> pLambd
     <|> pParnt
+    <|> pAddtt
+    <|> pSubtr
+    <|> pMultp
+    <|> pDivsn
+    <|> pModl
+    <|> pNatvInt
     <|> pIdent
+pAddtt :: Parser TExprs
+pAddtt = try $ do
+    _ <- lSymbl "`+"
+    e0 <- pNatvInt
+    return $ TAddtt e0
+pSubtr :: Parser TExprs
+pSubtr = try $ do
+    _ <- lSymbl "`-"
+    e0 <- pNatvInt
+    return $ TSubtr e0
+pMultp :: Parser TExprs
+pMultp = try $ do
+    _ <- lSymbl "`*"
+    e0 <- pNatvInt
+    return $ TMultp e0
+pDivsn :: Parser TExprs
+pDivsn = try $ do
+    _ <- lSymbl "`/"
+    e0 <- pNatvInt
+    return $ TDivsn e0
+pModl :: Parser TExprs
+pModl = try $ do
+    _ <- lSymbl "`%"
+    e0 <- pNatvInt
+    return $ TModl e0
+pNatvInt :: Parser TExprs
+pNatvInt = try $ do
+    s0 <- char '`' >> lIdent
+    return $ TNatvInt s0
 pIfThenElse :: Parser TExprs
 pIfThenElse = try $ do
     _ <- lSymbl "if"
