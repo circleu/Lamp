@@ -19,15 +19,15 @@ cgLookup a = "__LAMPHEADERDATA_LOOKUP(" ++ show a ++ ")"
 cgReturn a = "__LAMPHEADERDATA_RETURN(" ++ a ++ ")"
 cgArgc = "__LAMPHEADERDATA_ARGC"
 cgArgv a = "__LAMPHEADERDATA_ARGV(" ++ a ++ ")"
-cgReadSize "1" a = "__LAMPHEADERDATA_READSIZE1(" ++ a ++ ")"
-cgReadSize "2" a = "__LAMPHEADERDATA_READSIZE2(" ++ a ++ ")"
-cgReadSize "4" a = "__LAMPHEADERDATA_READSIZE4(" ++ a ++ ")"
-cgReadSize "8" a = "__LAMPHEADERDATA_READSIZE8(" ++ a ++ ")"
+cgReadSize a "1" = "__LAMPHEADERDATA_READSIZE1(" ++ a ++ ")"
+cgReadSize a "2" = "__LAMPHEADERDATA_READSIZE2(" ++ a ++ ")"
+cgReadSize a "4" = "__LAMPHEADERDATA_READSIZE4(" ++ a ++ ")"
+cgReadSize a "8" = "__LAMPHEADERDATA_READSIZE8(" ++ a ++ ")"
 cgReadSize _ _ = ""
-cgWriteSize "1" a b = "__LAMPHEADERDATA_WRITESIZE1(" ++ a ++ "," ++ b ++ ")"
-cgWriteSize "2" a b = "__LAMPHEADERDATA_WRITESIZE2(" ++ a ++ "," ++ b ++ ")"
-cgWriteSize "4" a b = "__LAMPHEADERDATA_WRITESIZE4(" ++ a ++ "," ++ b ++ ")"
-cgWriteSize "8" a b = "__LAMPHEADERDATA_WRITESIZE8(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize a b "1" = "__LAMPHEADERDATA_WRITESIZE1(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize a b "2" = "__LAMPHEADERDATA_WRITESIZE2(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize a b "4" = "__LAMPHEADERDATA_WRITESIZE4(" ++ a ++ "," ++ b ++ ")"
+cgWriteSize a b "8" = "__LAMPHEADERDATA_WRITESIZE8(" ++ a ++ "," ++ b ++ ")"
 cgWriteSize _ _ _ = ""
 cgWrapper a = "__LAMPHEADERDATA_WRAPPER(" ++ a ++ ")"
 cgDeclareExt a b = "__LAMPHEADERDATA_DECLAREXT(" ++ a ++ "," ++ b ++ ")"
@@ -114,23 +114,23 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
         e0' <- generate e0
         e1' <- generate e1
         return $ cgApply e0' e1'
-    generate (TIdent s0) = return s0
+    generate (TIdntf s0) = return s0
     generate (TDBIdent i0) = return $ cgLookup i0
     generate (TRetrn e0) = do
         e0' <- generate e0
-        return $ cgReturn $ cgDecode e0'
-    generate (TExtCall e0 e1) = do
+        return $ cgReturn e0'
+    generate (TExtrnCall e0 e1) = do
         e0' <- generate e0
         let e0'' = drop 2 e0'
 
         e1' <- mapM generate e1
-        let e1'' = "(" ++ intercalate "," (replicate (length e1') "unsigned long int") ++ ")"
+        let e1'' = "(" ++ intercalate "," (replicate (length e1') "long") ++ ")"
             fh' = cgDeclareExt e0'' e1''
         modify (\(c, s, h, fh) -> (c, s, h, fh' : fh))
 
         let e1'' = "(" ++ intercalate "," e1' ++ ")"
         return $ cgExtCall e0'' e1''
-    generate (TAlloc e0) = do
+    generate (TAllct e0) = do
         (_, s', _, _) <- get
         let n = "__LAMPHEADERDATA_s" ++ show s'
         modify (\(c, s, h, fh) -> (c, s + 1, h, fh))
@@ -140,4 +140,16 @@ cgGenerate a = concat <$> sequence [(++ ";") <$> generate' s | s <- a] where
         modify (\(c, s, h, fh) -> (c, s, h' : h, fh))
 
         return $ cgGetS n
+    generate (TReadMemry e0 e1) = do
+        e0' <- generate e0
+        e1' <- generate e1
+        return $ cgReadSize e0' e1'
+    generate (TWriteMemry e0 e1 e2) = do
+        e0' <- generate e0
+        e1' <- generate e1
+        e2' <- generate e2
+        return $ cgWriteSize e0' e1' e2'
+    generate (TDecd e0) = do
+        e0' <- generate e0
+        return $ cgDecode e0'
     generate _ = return ""
