@@ -1,6 +1,7 @@
 module Parser where
 
 import Control.Monad.State.Strict (StateT, MonadState(get), modify, gets)
+import Numeric (readDec, readHex, readBin, readOct)
 import Data.List (elemIndex)
 import Data.Void (Void)
 import Text.Megaparsec (noneOf, manyTill, some, many, (<|>), Parsec, MonadParsec(try, eof))
@@ -13,7 +14,7 @@ import Text.Read (readMaybe)
 type TNameList = [(TExprs, TExprs)]
 type Parser a = (StateT TNameList) (Parsec Void String) a
 type Converter a = StateT Int a
-lKeywords = ["if", "then", "else", "retrn", "allct", "extrnCall", "readMemry", "writeMemry", "decd"]
+lKeywords = ["if", "then", "else", "retrn", "allct", "extrnCall", "readMemry", "writeMemry", "decd", "wrap", "unwrap", "argc", "argv"]
 
 lSpaceConsm = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 lSymbl = L.symbol lSpaceConsm
@@ -47,9 +48,13 @@ data TExprs
     | TRetrn TExprs
     | TExtrnCall TExprs [TExprs]
     | TAllct TExprs
-    | TReadMemry TExprs TExprs
-    | TWriteMemry TExprs TExprs TExprs
+    | TReadMemry
+    | TWriteMemry
     | TDecd TExprs
+    | TWrap TExprs
+    | TUnwrap TExprs
+    | TArgc
+    | TArgv TExprs
     deriving (Show, Eq)
 
 pPreprocessor0 :: Parser [String]
@@ -105,12 +110,14 @@ pIncld = try $ do
 pExprs :: Parser TExprs
 pExprs
     =   pDecd
+    <|> pWrap
+    <|> pUnwrap
     <|> pIfThenElse
     <|> pRetrn
     <|> pExtrnCall
     <|> pAllct
-    <|> pReadMemry
-    <|> pWriteMemry
+    <|> pArgc
+    <|> pArgv
     <|> pLambd
     <|> pSubtt
     <|> pApplc
@@ -121,16 +128,18 @@ pExprs
     <|> pDivsn
     <|> pModl
     <|> pNatvInt
+    <|> pReadMemry
+    <|> pWriteMemry
     <|> pIdntf
 pUnitExprs :: Parser TExprs
 pUnitExprs
     =   pDecd
+    <|> pWrap
+    <|> pUnwrap
     <|> pIfThenElse
     <|> pRetrn
     <|> pExtrnCall
     <|> pAllct
-    <|> pReadMemry
-    <|> pWriteMemry
     <|> pLambd
     <|> pParnt
     <|> pAddtt
@@ -139,12 +148,24 @@ pUnitExprs
     <|> pDivsn
     <|> pModl
     <|> pNatvInt
+    <|> pReadMemry
+    <|> pWriteMemry
     <|> pIdntf
 pDecd :: Parser TExprs
 pDecd = try $ do
     _ <- lSymbl "decd"
     e0 <- pExprs
     return $ TDecd e0
+pWrap :: Parser TExprs
+pWrap = try $ do
+    _ <- lSymbl "wrap"
+    e0 <- pExprs
+    return $ TWrap e0
+pUnwrap :: Parser TExprs
+pUnwrap = try $ do
+    _ <- lSymbl "unwrap"
+    e0 <- pExprs
+    return $ TUnwrap e0
 pAddtt :: Parser TExprs
 pAddtt = try $ do
     _ <- lSymbl "`+"
@@ -172,8 +193,37 @@ pModl = try $ do
     return $ TModl e0
 pNatvInt :: Parser TExprs
 pNatvInt = try $ do
-    s0 <- char '`' >> lIdent
+    s0 <- pDecimal <|> pHexadecimal <|> pBinary <|> pOctal
     return $ TNatvInt s0
+    where
+        pDecimal :: Parser String
+        pDecimal = try $ do
+            _ <- lSymbl "0d"
+            s0 <- lIdent
+            case readDec s0 of
+                [(n, "")] -> return $ show n
+                _ -> return ""
+        pHexadecimal :: Parser String
+        pHexadecimal = try $ do
+            _ <- lSymbl "0x"
+            s0 <- lIdent
+            case readHex s0 of
+                [(n, "")] -> return $ show n
+                _ -> return ""
+        pBinary :: Parser String
+        pBinary = try $ do
+            _ <- lSymbl "0b"
+            s0 <- lIdent
+            case readBin s0 of
+                [(n, "")] -> return $ show n
+                _ -> return ""
+        pOctal :: Parser String
+        pOctal = try $ do
+            _ <- lSymbl "0o"
+            s0 <- lIdent
+            case readOct s0 of
+                [(n, "")] -> return $ show n
+                _ -> return ""
 pIfThenElse :: Parser TExprs
 pIfThenElse = try $ do
     _ <- lSymbl "if"
@@ -197,21 +247,25 @@ pExtrnCall = try $ do
 pAllct :: Parser TExprs
 pAllct = try $ do
     _ <- lSymbl "allct"
-    e0 <- pExprs
+    e0 <- pNatvInt
     return $ TAllct e0
+pArgc :: Parser TExprs
+pArgc = try $ do
+    _ <- lSymbl "argc"
+    return TArgc
+pArgv :: Parser TExprs
+pArgv = try $ do
+    _ <- lSymbl "argv"
+    e0 <- pExprs
+    return $ TArgv e0
 pReadMemry :: Parser TExprs
 pReadMemry = try $ do
     _ <- lSymbl "readMemry"
-    e0 <- pParnt
-    e1 <- pIdntf
-    return $ TReadMemry e0 e1
+    return TReadMemry
 pWriteMemry :: Parser TExprs
 pWriteMemry = try $ do
     _ <- lSymbl "writeMemry"
-    e0 <- pParnt
-    e1 <- pParnt
-    e2 <- pIdntf
-    return $ TWriteMemry e0 e1 e2
+    return TWriteMemry
 pLambd :: Parser TExprs
 pLambd = try $ do
     _ <- lSymbl "\\"
@@ -285,6 +339,15 @@ cDeBruijn (TRetrn e0) bvs =
 cDeBruijn (TDecd e0) bvs =
     let e0' = cDeBruijn e0 bvs
     in TDecd e0'
+cDeBruijn (TWrap e0) bvs =
+    let e0' = cDeBruijn e0 bvs
+    in TWrap e0'
+cDeBruijn (TUnwrap e0) bvs =
+    let e0' = cDeBruijn e0 bvs
+    in TUnwrap e0'
+cDeBruijn (TArgv e0) bvs =
+    let e0' = cDeBruijn e0 bvs
+    in TArgv e0'
 cDeBruijn e0 _ = e0
 
 cNameConversions :: TAst -> Parser TAst
@@ -342,6 +405,15 @@ cNameConversion (TSubtt e0 i0 e1) = case e0 of
         subtitution (TDecd e0') i0 e1 bvs =
             let e0'' = subtitution e0' i0 e1 bvs
             in TDecd e0''
+        subtitution (TWrap e0') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 bvs
+            in TWrap e0''
+        subtitution (TUnwrap e0') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 bvs
+            in TUnwrap e0''
+        subtitution (TArgv e0') i0 e1 bvs =
+            let e0'' = subtitution e0' i0 e1 bvs
+            in TArgv e0''
         subtitution e0 _ _ _ = e0
 cNameConversion (TApplc e0 e1) = do
     e0' <- cNameConversion e0
@@ -365,4 +437,13 @@ cNameConversion (TRetrn e0) = do
 cNameConversion (TDecd e0) = do
     e0' <- cNameConversion e0
     return $ TDecd e0'
+cNameConversion (TWrap e0) = do
+    e0' <- cNameConversion e0
+    return $ TWrap e0'
+cNameConversion (TUnwrap e0) = do
+    e0' <- cNameConversion e0
+    return $ TUnwrap e0'
+cNameConversion (TArgv e0) = do
+    e0' <- cNameConversion e0
+    return $ TArgv e0'
 cNameConversion e0 = return e0

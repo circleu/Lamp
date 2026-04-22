@@ -1,14 +1,10 @@
 #incld prelude.lmp;
 
 
--- asdf = allct 0x230;
--- (HEAD (MAP (ADD 1) (CONS 1 (CONS 2 (CONS 3 (CONS 4 NIL))))));
--- retrn decd if (ISNIL NIL) then 2 else 3;
--- retrn decd ADD 1 2;
-
 -- (\x .\y .\z .x t y ((\y .y f)[f := t]) x z)[t := s];
 test = allct 0x300;
-writeMemry (test) (decd `1) 4;
-retrn decd ADD 50 2;
--- retrn readMemry (test) 4;
--- retrn `+ `1 `2 `3 `4 `5;
+writeMemry test 0d1 0d4;
+retrn unwrap readMemry test 0d4;
+-- retrn unwrap argv 0d1;
+-- 0x56 898;
+-- retrn decd ADD 50 2;
