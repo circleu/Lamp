@@ -31,13 +31,27 @@ cgCheckTF a = "__LAMPHEADER_CHECKTF(" ++ a ++ ")"
 cgCheckErr = "__LAMPHEADER_CHECKERR;"
 cgWrap a = "__LAMPHEADER_WRAP(" ++ a ++ ")"
 cgUnwrap a = "__LAMPHEADER_UNWRAP(" ++ a ++ ")"
+cgNull = "__LAMPHEADER_NULL"
+cgRead = "__LAMPHEADER_read0"
+cgWrite = "__LAMPHEADER_write0"
+cgAdd = "__LAMPHEADER_add0"
+cgSub = "__LAMPHEADER_sub0"
+cgMul = "__LAMPHEADER_mul0"
+cgDiv = "__LAMPHEADER_div0"
+cgMod = "__LAMPHEADER_mod0"
+cgFName = "__LAMPHEADER_f"
+cgSName = "__LAMPHEADER_s"
+cgNenv = "__LAMPHEADER_nenv"
+cgHName = "header.c"
+cgIsNatv = "1"
+cgNotNatv = "0"
 
 cgConvert :: TAst -> IO String
 cgConvert a = do 
     let r = runState (cgGenerate a) (0, 0, [], [])
         (_, _, h, fh) = snd r
         b = fst r
-    header <- readFile "header.c"
+    header <- readFile cgHName
     return $ header ++ concat fh ++ concat h ++ cgWrapper b
 cgGenerate :: TAst -> CodeGenerator String
 cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <- a] where
@@ -50,17 +64,17 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
     generate' _ = return ""
     generate :: TExprs -> CodeGenerator String
     generate (TNatvInt i0) = do
-        return $ cgCCreat "__LAMPHEADER_NULL" i0 "1"
-    generate (TAddtt (TNatvInt s0)) = do
-        return $ cgCCreat "__LAMPHEADER_add" s0 "1"
-    generate (TSubtr (TNatvInt s0)) = do
-        return $ cgCCreat "__LAMPHEADER_sub" s0 "1"
-    generate (TMultp (TNatvInt s0)) = do
-        return $ cgCCreat "__LAMPHEADER_mul" s0 "1"
-    generate (TDivsn (TNatvInt s0)) = do
-        return $ cgCCreat "__LAMPHEADER_div" s0 "1"
-    generate (TModl (TNatvInt s0)) = do
-        return $ cgCCreat "__LAMPHEADER_mod" s0 "1"
+        return $ cgCCreat cgNull i0 cgIsNatv
+    generate TAddtt = do
+        return $ cgCCreat cgAdd cgNull cgNotNatv
+    generate TSubtr = do
+        return $ cgCCreat cgSub cgNull cgNotNatv
+    generate TMultp = do
+        return $ cgCCreat cgMul cgNull cgNotNatv
+    generate TDivsn = do
+        return $ cgCCreat cgDiv cgNull cgNotNatv
+    generate TModl = do
+        return $ cgCCreat cgMod cgNull cgNotNatv
     generate (TIfThenElse e0 e1 e2) = do
         e0' <- generate e0
         e1' <- generate e1
@@ -69,8 +83,8 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
     generate (TDBLambd e0) = case e0 of
         TDBLambd _ -> do
             (c', _, _, _) <- get
-            let n = "__LAMPHEADER_f" ++ show c'
-                n' = "__LAMPHEADER_f" ++ show (c' + 1)
+            let n = cgFName ++ show c'
+                n' = cgFName ++ show (c' + 1)
             modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             let h' = cgDefineFn0 n n'
@@ -78,10 +92,10 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
             modify (\(c, s, h, fh) -> (c, s, h' : h, fh' : fh))
 
             _ <- generate e0
-            return $ cgCCreat n "__LAMPHEADER_nenv" "0"
+            return $ cgCCreat n cgNenv cgNotNatv
         TApplc e0 e1 -> do
             (c', _, _, _) <- get
-            let n = "__LAMPHEADER_f" ++ show c'
+            let n = cgFName ++ show c'
             modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             e0' <- generate e0
@@ -90,10 +104,10 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "__LAMPHEADER_nenv" "0"
+            return $ cgCCreat n cgNenv cgNotNatv
         _ -> do
             (c', _, _, _) <- get
-            let n = "__LAMPHEADER_f" ++ show c'
+            let n = cgFName ++ show c'
             modify (\(c, s, h, fh) -> (c + 1, s, h, fh))
 
             e0' <- generate e0
@@ -101,7 +115,7 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
             let fh' = cgDeclareF n
             modify (\(c, s, h, fh) -> (c + 1, s, h' : h, fh' : fh))
 
-            return $ cgCCreat n "__LAMPHEADER_nenv" "0"
+            return $ cgCCreat n cgNenv cgNotNatv
     generate (TApplc e0 e1) = do
         e0' <- generate e0
         e1' <- generate e1
@@ -110,7 +124,7 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
     generate (TDBIdent i0) = return $ cgLookup i0
     generate (TRetrn e0) = do
         e0' <- generate e0
-        return $ cgReturn e0'
+        return $ cgReturn $ cgUnwrap e0'
     generate (TExtrnCall e0 e1) = do
         e0' <- generate e0
         let e0'' = drop 2 e0'
@@ -124,7 +138,7 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
         return $ cgExtCall e0'' e1''
     generate (TAllct (TNatvInt s0)) = do
         (_, s', _, _) <- get
-        let n = "__LAMPHEADER_s" ++ show s'
+        let n = cgSName ++ show s'
         modify (\(c, s, h, fh) -> (c, s + 1, h, fh))
 
         let h' = cgDefineS n s0
@@ -132,9 +146,9 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
 
         return $ cgGetS n
     generate TReadMemry = do
-        return $ cgCCreat "__LAMPHEADER_read0" "__LAMPHEADER_NULL" "0"
+        return $ cgCCreat cgRead cgNull cgNotNatv
     generate TWriteMemry = do
-        return $ cgCCreat "__LAMPHEADER_write0" "__LAMPHEADER_NULL" "0"
+        return $ cgCCreat cgWrite cgNull cgNotNatv
     generate (TDecd e0) = do
         e0' <- generate e0
         return $ cgChurchToNative e0'
@@ -145,8 +159,8 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
         e0' <- generate e0
         return $ cgUnwrap e0'
     generate TArgc = do
-        return $ cgWrap $ cgArgc
+        return cgArgc
     generate (TArgv e0) = do
         e0' <- generate e0
-        return $ cgWrap $ cgArgv $ cgUnwrap e0'
+        return $ cgArgv e0'
     generate _ = return ""

@@ -14,7 +14,26 @@ import Text.Read (readMaybe)
 type TNameList = [(TExprs, TExprs)]
 type Parser a = (StateT TNameList) (Parsec Void String) a
 type Converter a = StateT Int a
-lKeywords = ["if", "then", "else", "retrn", "allct", "extrnCall", "readMemry", "writeMemry", "decd", "wrap", "unwrap", "argc", "argv"]
+lKeywords = [
+    "if",
+    "then",
+    "else",
+    "retrn",
+    "allct",
+    "extrnCall",
+    "readMemry",
+    "writeMemry",
+    "decd",
+    "wrap",
+    "unwrap",
+    "argc",
+    "argv",
+    "+",
+    "-",
+    "*",
+    "/",
+    "%"
+    ]
 
 lSpaceConsm = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 lSymbl = L.symbol lSpaceConsm
@@ -33,11 +52,11 @@ data TStatm
 
 data TExprs
     = TNatvInt String
-    | TAddtt TExprs
-    | TSubtr TExprs
-    | TMultp TExprs
-    | TDivsn TExprs
-    | TModl TExprs
+    | TAddtt
+    | TSubtr
+    | TMultp
+    | TDivsn
+    | TModl
     | TIfThenElse TExprs TExprs TExprs
     | TLambd TExprs TExprs
     | TSubtt TExprs TExprs TExprs
@@ -168,29 +187,24 @@ pUnwrap = try $ do
     return $ TUnwrap e0
 pAddtt :: Parser TExprs
 pAddtt = try $ do
-    _ <- lSymbl "`+"
-    e0 <- pNatvInt
-    return $ TAddtt e0
+    _ <- lSymbl "+"
+    return TAddtt
 pSubtr :: Parser TExprs
 pSubtr = try $ do
-    _ <- lSymbl "`-"
-    e0 <- pNatvInt
-    return $ TSubtr e0
+    _ <- lSymbl "-"
+    return TSubtr
 pMultp :: Parser TExprs
 pMultp = try $ do
-    _ <- lSymbl "`*"
-    e0 <- pNatvInt
-    return $ TMultp e0
+    _ <- lSymbl "*"
+    return TMultp
 pDivsn :: Parser TExprs
 pDivsn = try $ do
-    _ <- lSymbl "`/"
-    e0 <- pNatvInt
-    return $ TDivsn e0
+    _ <- lSymbl "/"
+    return TDivsn
 pModl :: Parser TExprs
 pModl = try $ do
-    _ <- lSymbl "`%"
-    e0 <- pNatvInt
-    return $ TModl e0
+    _ <- lSymbl "%"
+    return TModl
 pNatvInt :: Parser TExprs
 pNatvInt = try $ do
     s0 <- pDecimal <|> pHexadecimal <|> pBinary <|> pOctal
