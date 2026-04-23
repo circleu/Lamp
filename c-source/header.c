@@ -1,5 +1,6 @@
 #define __LAMPHEADER_NULL ((void*)0)
-#define __LAMPHEADER_REGION_SIZE (0x4000)
+#define __LAMPHEADER_TREGION_SIZE (0x4000)
+#define __LAMPHEADER_PREGION_SIZE (0xC000)
 
 #define __LAMPHEADER_DECLAREF(a) __LAMPHEADER_CLOSURE* a(__LAMPHEADER_CLOSURE* __LAMPHEADER_this, __LAMPHEADER_CLOSURE* __LAMPHEADER_arg);
 #define __LAMPHEADER_DEFINEF0(a, b)\
@@ -32,13 +33,15 @@ __LAMPHEADER_CLOSURE* a(__LAMPHEADER_CLOSURE* __LAMPHEADER_this, __LAMPHEADER_CL
 #define __LAMPHEADER_EXTCALL(a, b) a b
 #define __LAMPHEADER_DEFINES(a, b) char a[b] = {0, };
 #define __LAMPHEADER_GETS(a) __LAMPHEADER_WRAP((long)&a[0])
-#define __LAMPHEADER_DEFINEC(a, b) __LAMPHEADER_CLOSURE* a = b;
+#define __LAMPHEADER_DEFINEC(a, b) __LAMPHEADER_CLOSURE* a = __LAMPHEADER_COPY(b);
 #define __LAMPHEADER_CHURCH(a) __LAMPHEADER_church_to_native(a)
 #define __LAMPHEADER_IFTHENELSE(a, b, c) (a ? b : c)
 #define __LAMPHEADER_CHECKTF(a) __LAMPHEADER_check_tf(a)
-#define __LAMPHEADER_CHECKERR if(__LAMPHEADER_iserr){return -1;}
+#define __LAMPHEADER_CHECKERR __LAMPHEADER_CLEAR;if(__LAMPHEADER_iserr){return -1;}
 #define __LAMPHEADER_WRAP(a) __LAMPHEADER_CCREAT(__LAMPHEADER_NULL, a, 1)
 #define __LAMPHEADER_UNWRAP(a) a->data.n
+#define __LAMPHEADER_COPY(a) __LAMPHEADER_move_region(a)
+#define __LAMPHEADER_CLEAR __LAMPHEADER_freal()
 
 
 typedef struct __LAMPHEADER__CLOSURE {
@@ -54,8 +57,10 @@ typedef struct __LAMPHEADER__ENVIRONMENT {
     struct __LAMPHEADER__ENVIRONMENT* next;
 } __LAMPHEADER_ENVIRONMENT;
 
-char __LAMPHEADER_region[__LAMPHEADER_REGION_SIZE] = {0, };
-unsigned int __LAMPHEADER_rptr = 0;
+char __LAMPHEADER_tregion[__LAMPHEADER_TREGION_SIZE] = {0, };
+char __LAMPHEADER_pregion[__LAMPHEADER_PREGION_SIZE] = {0, };
+unsigned int __LAMPHEADER_trptr = 0;
+unsigned int __LAMPHEADER_prptr = 0;
 char __LAMPHEADER_iserr = 0;
 
 void __LAMPHEADER_memcpy(void* __LAMPHEADER_s1, void* __LAMPHEADER_s2, long __LAMPHEADER_n) {
@@ -69,14 +74,33 @@ void __LAMPHEADER_memset(void* __LAMPHEADER_s, char __LAMPHEADER_c, long __LAMPH
     }
 }
 void* __LAMPHEADER_malloc(long __LAMPHEADER_size) {
-    unsigned int __LAMPHEADER_ret = __LAMPHEADER_rptr;
-    __LAMPHEADER_memset(&__LAMPHEADER_region[ __LAMPHEADER_rptr], 0, __LAMPHEADER_size);
-    __LAMPHEADER_rptr += __LAMPHEADER_size;
-    return &__LAMPHEADER_region[__LAMPHEADER_ret];
+    unsigned int __LAMPHEADER_ret = __LAMPHEADER_trptr;
+    __LAMPHEADER_trptr += __LAMPHEADER_size;
+    return &__LAMPHEADER_tregion[__LAMPHEADER_ret];
 }
 void __LAMPHEADER_freal() {
-    __LAMPHEADER_memset(__LAMPHEADER_region, 0, __LAMPHEADER_REGION_SIZE);
-    __LAMPHEADER_rptr = 0;
+    __LAMPHEADER_memset(__LAMPHEADER_tregion, 0, __LAMPHEADER_TREGION_SIZE);
+    __LAMPHEADER_trptr = 0;
+}
+void __LAMPHEADER_traverse(__LAMPHEADER_ENVIRONMENT*);
+__LAMPHEADER_CLOSURE* __LAMPHEADER_move_region(__LAMPHEADER_CLOSURE* __LAMPHEADER_c) {
+    if (!__LAMPHEADER_c->isint) {
+        __LAMPHEADER_traverse(__LAMPHEADER_c->data.env);
+    }
+    void* __LAMPHEADER_target = &__LAMPHEADER_pregion[__LAMPHEADER_prptr];
+    __LAMPHEADER_memcpy(__LAMPHEADER_target, __LAMPHEADER_c, sizeof(__LAMPHEADER_CLOSURE));
+    __LAMPHEADER_prptr += sizeof(__LAMPHEADER_CLOSURE);
+    return __LAMPHEADER_target;
+}
+void __LAMPHEADER_traverse(__LAMPHEADER_ENVIRONMENT* __LAMPHEADER_env) {
+    if (__LAMPHEADER_env == __LAMPHEADER_NULL) {
+        return;
+    }
+    __LAMPHEADER_env->value = __LAMPHEADER_move_region(__LAMPHEADER_env->value);
+    void* __LAMPHEADER_target = &__LAMPHEADER_pregion[__LAMPHEADER_prptr];
+    __LAMPHEADER_memcpy(__LAMPHEADER_target, __LAMPHEADER_env, sizeof(__LAMPHEADER_ENVIRONMENT));
+    __LAMPHEADER_prptr += sizeof(__LAMPHEADER_ENVIRONMENT);
+    __LAMPHEADER_env = __LAMPHEADER_target;
 }
 __LAMPHEADER_ENVIRONMENT* __LAMPHEADER_extenv(__LAMPHEADER_ENVIRONMENT* __LAMPHEADER_env, __LAMPHEADER_CLOSURE* __LAMPHEADER_args) {
     if (__LAMPHEADER_env == __LAMPHEADER_NULL) {
@@ -127,11 +151,11 @@ __LAMPHEADER_CLOSURE* __LAMPHEADER_church_to_native(__LAMPHEADER_CLOSURE* __LAMP
         return __LAMPHEADER_num;
     }
     
-    unsigned int __LAMPHEADER_init = __LAMPHEADER_rptr;
+    unsigned int __LAMPHEADER_init = __LAMPHEADER_trptr;
     __LAMPHEADER_CLOSURE* __LAMPHEADER_counter = __LAMPHEADER_ccreat(__LAMPHEADER_church, 0, 0);
     __LAMPHEADER_CLOSURE* __LAMPHEADER_dummy = __LAMPHEADER_ccreat(__LAMPHEADER_self, (long)__LAMPHEADER_NULL, 0);
     long __LAMPHEADER_ret = __LAMPHEADER_APPLY(__LAMPHEADER_APPLY(__LAMPHEADER_num, __LAMPHEADER_counter), __LAMPHEADER_dummy)->data.n;
-    __LAMPHEADER_rptr = __LAMPHEADER_init;
+    __LAMPHEADER_trptr = __LAMPHEADER_init;
     return __LAMPHEADER_CCREAT(__LAMPHEADER_NULL, __LAMPHEADER_ret, 1);
 }
 char __LAMPHEADER_check_tf(__LAMPHEADER_CLOSURE* __LAMPHEADER_cond) {
@@ -139,11 +163,11 @@ char __LAMPHEADER_check_tf(__LAMPHEADER_CLOSURE* __LAMPHEADER_cond) {
         return __LAMPHEADER_cond->data.n;
     }
 
-    unsigned int __LAMPHEADER_init = __LAMPHEADER_rptr;
+    unsigned int __LAMPHEADER_init = __LAMPHEADER_trptr;
     __LAMPHEADER_CLOSURE* __LAMPHEADER_ctrue = __LAMPHEADER_ccreat(__LAMPHEADER_self, 1, 0);
     __LAMPHEADER_CLOSURE* __LAMPHEADER_cfalse = __LAMPHEADER_ccreat(__LAMPHEADER_self, 0, 0);
     char __LAMPHEADER_ret = (char)__LAMPHEADER_APPLY(__LAMPHEADER_APPLY(__LAMPHEADER_cond, __LAMPHEADER_ctrue), __LAMPHEADER_cfalse)->data.n;
-    __LAMPHEADER_rptr = __LAMPHEADER_init;
+    __LAMPHEADER_trptr = __LAMPHEADER_init;
     if (__LAMPHEADER_ret != 0 && __LAMPHEADER_ret != 1) {
         __LAMPHEADER_iserr = 1;
         return -1;

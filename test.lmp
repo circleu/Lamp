@@ -1,9 +1,6 @@
 #incld prelude.lmp;
 
-{-
+
 test = allct 0x300;
 writeMemry test 0d1 0d4;
 retrn readMemry test 0d4;
--}
-
-retrn (% 0d10 0d3);
