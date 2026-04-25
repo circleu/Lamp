@@ -1,6 +1,13 @@
 #incld prelude.lmp;
 
 
+-- asdf _ _ _ := \x .\y .\z .x y z;
+
+{-
 test = allct 0x300;
 writeMemry test 0d1 0d4;
 retrn readMemry test 0d4;
+-}
+
+_ add _ := \m .\n .\f .\x .m f (n f x);
+retrn decd 2 add 3;

@@ -121,7 +121,7 @@ cgGenerate a = concat <$> sequence [(++ ";" ++ cgCheckErr) <$> generate' s | s <
         e1' <- generate e1
         return $ cgApply e0' e1'
     generate (TIdntf s0) = return s0
-    generate (TDBIdent i0) = return $ cgLookup i0
+    generate (TDBIdntf i0) = return $ cgLookup i0
     generate (TRetrn e0) = do
         e0' <- generate e0
         return $ cgReturn $ cgUnwrap e0'

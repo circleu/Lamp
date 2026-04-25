@@ -1,17 +1,20 @@
 module Parser where
 
 import Control.Monad.State.Strict (StateT, MonadState(get), modify, gets)
+import Control.Monad (void)
 import Numeric (readDec, readHex, readBin, readOct)
 import Data.List (elemIndex)
 import Data.Void (Void)
-import Text.Megaparsec (noneOf, manyTill, some, many, (<|>), Parsec, MonadParsec(try, eof))
+import Text.Megaparsec (noneOf, manyTill, someTill, some, many, (<|>), Parsec, MonadParsec(try, eof, lookAhead), optional, empty)
 import Text.Megaparsec.Char (space1, char)
 import qualified Text.Megaparsec.Char.Lexer as L
 import Text.Read (readMaybe)
+import Data.Maybe (catMaybes)
+import Debug.Trace (trace)
 
 
 -- Parser --
-type TNameList = [(TExprs, TExprs)]
+type TNameList = [([TExprs], TExprs)]
 type Parser a = (StateT TNameList) (Parsec Void String) a
 type Converter a = StateT Int a
 lKeywords = [
@@ -32,20 +35,22 @@ lKeywords = [
     "-",
     "*",
     "/",
-    "%"
+    "%",
+    "=",
+    ":=",
+    "_"
     ]
 
 lSpaceConsm = L.space space1 (L.skipLineComment "--") (L.skipBlockComment "{-" "-}")
 lSymbl = L.symbol lSpaceConsm
-lIdent = do
-    result <- try $ some (noneOf "\n (){}[]#;`") <* lSpaceConsm
+lIdntf = do
+    result <- try $ some (noneOf "\n ()#;`") <* lSpaceConsm
     if elem result lKeywords then try $ lSymbl "#" else return result
 
 type TAst = [TStatm]
 
 data TStatm
-    = TNameDeclr TExprs TExprs
-    | TConstDeclr TExprs TExprs
+    = TConstDeclr TExprs TExprs
     | TExprs TExprs
     | TNothing
     deriving (Show, Eq)
@@ -63,7 +68,7 @@ data TExprs
     | TApplc TExprs TExprs
     | TIdntf String
     | TDBLambd TExprs
-    | TDBIdent Int
+    | TDBIdntf Int
     | TRetrn TExprs
     | TExtrnCall TExprs [TExprs]
     | TAllct TExprs
@@ -74,25 +79,21 @@ data TExprs
     | TUnwrap TExprs
     | TArgc
     | TArgv TExprs
+    | TBlank
+    | TNothing'
     deriving (Show, Eq)
 
 pPreprocessor0 :: Parser [String]
-pPreprocessor0 = do
-    _ <- many include
-    nl <- gets $ map fst
-    let nl' = [n | TIdntf n <- nl]
-    return nl'
+pPreprocessor0 = many include
     where
-        include :: Parser ()
+        include :: Parser String
         include = do
             _ <- lSymbl "#incld"
             e0 <- pIdntf
             _ <- lSymbl ";"
             case e0 of
-                TIdntf s0 -> do
-                    modify (\nl -> (e0, TIdntf "") : nl)
-                    return ()
-                _ -> return ()
+                TIdntf s0 -> return s0
+                _ -> return ""
 pPreprocessor1 :: String -> [String] -> IO String
 pPreprocessor1 s nl = do
     hs <- sequence [readFile n | n <- nl]
@@ -110,10 +111,11 @@ pStatm :: Parser TStatm
 pStatm = (pNameDeclr <|> pConstDeclr <|> pIncld <|> TExprs <$> pExprs) <* lSymbl ";"
 pNameDeclr :: Parser TStatm
 pNameDeclr = try $ do
-    i0 <- pIdntf
+    e0 <- someTill (pIdntf <|> pBlank) (lookAhead $ lSymbl ":=")
     _ <- lSymbl ":="
-    e0 <- pExprs
-    return $ TNameDeclr i0 e0
+    e1 <- pExprs
+    modify ((e0, e1) :)
+    return TNothing
 pConstDeclr :: Parser TStatm
 pConstDeclr = try $ do
     i0 <- pIdntf
@@ -128,7 +130,8 @@ pIncld = try $ do
 
 pExprs :: Parser TExprs
 pExprs
-    =   pDecd
+    =   pMacro
+    <|> pDecd
     <|> pWrap
     <|> pUnwrap
     <|> pIfThenElse
@@ -149,6 +152,7 @@ pExprs
     <|> pNatvInt
     <|> pReadMemry
     <|> pWriteMemry
+    <|> pBlank
     <|> pIdntf
 pUnitExprs :: Parser TExprs
 pUnitExprs
@@ -169,7 +173,27 @@ pUnitExprs
     <|> pNatvInt
     <|> pReadMemry
     <|> pWriteMemry
+    <|> pBlank
     <|> pIdntf
+pMacro :: Parser TExprs
+pMacro = try $ do
+    ml <- get
+    converted <- sequence [optional $ try $ convert m | m <- ml]
+    let ret = catMaybes converted
+    case ret of
+        [] -> lSymbl "#" >> return TNothing'
+        [e] -> return e
+    where
+        convert :: ([TExprs], TExprs) -> Parser TExprs
+        convert m = do
+            converted <- sequence [convert' p | p <- fst m]
+            let pl = filter (/= TNothing') converted
+            es <- many pUnitExprs
+            return $ foldl TApplc (snd m) (pl ++ es)
+        convert' :: TExprs -> Parser TExprs
+        convert' TBlank = pUnitExprs
+        convert' (TIdntf s) = lSymbl s >> return TNothing'
+        convert' _ = lSymbl "#" >> return TNothing'
 pDecd :: Parser TExprs
 pDecd = try $ do
     _ <- lSymbl "decd"
@@ -213,28 +237,28 @@ pNatvInt = try $ do
         pDecimal :: Parser String
         pDecimal = try $ do
             _ <- lSymbl "0d"
-            s0 <- lIdent
+            s0 <- lIdntf
             case readDec s0 of
                 [(n, "")] -> return $ show n
                 _ -> return ""
         pHexadecimal :: Parser String
         pHexadecimal = try $ do
             _ <- lSymbl "0x"
-            s0 <- lIdent
+            s0 <- lIdntf
             case readHex s0 of
                 [(n, "")] -> return $ show n
                 _ -> return ""
         pBinary :: Parser String
         pBinary = try $ do
             _ <- lSymbl "0b"
-            s0 <- lIdent
+            s0 <- lIdntf
             case readBin s0 of
                 [(n, "")] -> return $ show n
                 _ -> return ""
         pOctal :: Parser String
         pOctal = try $ do
             _ <- lSymbl "0o"
-            s0 <- lIdent
+            s0 <- lIdntf
             case readOct s0 of
                 [(n, "")] -> return $ show n
                 _ -> return ""
@@ -307,9 +331,13 @@ pParnt = try $ do
     e0 <- pExprs
     _ <- lSymbl ")"
     return e0
+pBlank :: Parser TExprs
+pBlank = try $ do
+    _ <- lSymbl "_"
+    return TBlank
 pIdntf :: Parser TExprs
 pIdntf = try $ do
-    s0 <- lIdent
+    s0 <- lIdntf
     return $ TIdntf s0
 
 
@@ -345,7 +373,7 @@ cDeBruijn (TApplc e0 e1) bvs =
 cDeBruijn (TIdntf s0) bvs =
     let i = elemIndex (TIdntf s0) bvs
     in case i of
-        Just i' -> TDBIdent i'
+        Just i' -> TDBIdntf i'
         Nothing -> TIdntf s0
 cDeBruijn (TRetrn e0) bvs =
     let e0' = cDeBruijn e0 bvs
@@ -367,10 +395,6 @@ cDeBruijn e0 _ = e0
 cNameConversions :: TAst -> Parser TAst
 cNameConversions a = cDeBruijns <$> sequence [cNameConversion' s | s <- a]
 cNameConversion' :: TStatm -> Parser TStatm
-cNameConversion' (TNameDeclr i0 e0) = do
-    e0' <- cNameConversion e0
-    modify (\nl -> (i0, e0') : nl)
-    return TNothing
 cNameConversion' (TConstDeclr i0 e0) = do
     e0' <- cNameConversion e0
     return $ TConstDeclr i0 e0'
@@ -435,12 +459,7 @@ cNameConversion (TApplc e0 e1) = do
     return $ TApplc e0' e1'
 cNameConversion (TIdntf s0) = case readMaybe s0 of
     Just n -> return $ TLambd (TIdntf "f") (TLambd (TIdntf "x") (convertNum n (TIdntf "x")))
-    Nothing -> do
-        nl <- get
-        let i = elemIndex (TIdntf s0) (map fst nl)
-        case i of
-            Just i' -> return $ map snd nl !! i'
-            Nothing -> return $ TIdntf s0
+    Nothing -> return $ TIdntf s0
     where
         convertNum :: Int -> TExprs -> TExprs
         convertNum 0 e0 = e0

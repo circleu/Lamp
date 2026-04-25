@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Monad.State.Strict (evalStateT)
+import Control.Monad.State.Strict (evalStateT, execStateT)
 import System.Environment (getArgs)
 import Text.Megaparsec (parse, parseTest, errorBundlePretty)
 
@@ -15,7 +15,7 @@ main = do
         source <- readFile $ args !! 0
         let Right nl = parse (evalStateT P.pPreprocessor0 []) "" source
         processed <- P.pPreprocessor1 source nl
-        -- parseTest (evalStateT P.pParse []) processed
+        parseTest (evalStateT P.pParse []) processed
         let parsed = parse (evalStateT P.pParse []) (args !! 0) processed
         case parsed of
             Left err -> putStr (errorBundlePretty err)
