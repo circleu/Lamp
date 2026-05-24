@@ -33,7 +33,7 @@ __LAMPHEADER_CLOSURE* a(__LAMPHEADER_CLOSURE* __LAMPHEADER_this, __LAMPHEADER_CL
 #define __LAMPHEADER_EXTCALL(a, b) a b
 #define __LAMPHEADER_DEFINES(a, b) char a[b] = {0, };
 #define __LAMPHEADER_GETS(a) __LAMPHEADER_WRAP((long)&a[0])
-#define __LAMPHEADER_DEFINEC(a, b) __LAMPHEADER_CLOSURE* a = __LAMPHEADER_COPY(b);
+#define __LAMPHEADER_LET(a, b, c) {__LAMPHEADER_CLOSURE* a = b; c;}
 #define __LAMPHEADER_CHURCH(a) __LAMPHEADER_church_to_native(a)
 #define __LAMPHEADER_IFTHENELSE(a, b, c) (a ? b : c)
 #define __LAMPHEADER_CHECKTF(a) __LAMPHEADER_check_tf(a)
@@ -42,6 +42,8 @@ __LAMPHEADER_CLOSURE* a(__LAMPHEADER_CLOSURE* __LAMPHEADER_this, __LAMPHEADER_CL
 #define __LAMPHEADER_UNWRAP(a) a->data.n
 #define __LAMPHEADER_COPY(a) __LAMPHEADER_move_region(a)
 #define __LAMPHEADER_CLEAR __LAMPHEADER_freal()
+#define __LAMPHEADER_DECLAREG(a) __LAMPHEADER_CLOSURE* a;
+#define __LAMPHEADER_DEFINEG(a, b) a = __LAMPHEADER_COPY(b)
 
 
 typedef struct __LAMPHEADER__CLOSURE {

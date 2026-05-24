@@ -1,26 +1,19 @@
 module Main where
 
-import Control.Monad.State.Strict (evalStateT, execStateT)
 import System.Environment (getArgs)
-import Text.Megaparsec (parse, parseTest, errorBundlePretty)
-
+import Text.Megaparsec (parse, errorBundlePretty)
 import qualified Parser as P
-import qualified CodeGenerator as C
+import qualified TypeChecker as T
 
 
 main :: IO ()
 main = do
     args <- getArgs
-    if length args == 2 then do
+    if length args < 2 then putStrLn "usage: ./Lamp [input] [output]"
+    else do
         source <- readFile $ args !! 0
-        let Right nl = parse (evalStateT P.pPreprocessor0 []) "" source
-        processed <- P.pPreprocessor1 source nl
-        parseTest (evalStateT P.pParse []) processed
-        let parsed = parse (evalStateT P.pParse []) (args !! 0) processed
-        case parsed of
-            Left err -> putStr (errorBundlePretty err)
-            Right ast -> do
-                converted <- C.cgConvert ast
-                writeFile (args !! 1) converted
-    else
-        putStrLn "usage: ./Lamp [input] [output]"
+        case parse P.parse (args !! 0) source of
+            Left bundle -> putStr (errorBundlePretty bundle)
+            Right parsed -> do
+                putStrLn $ "AST: " ++ show parsed
+                T.tAst ((Left <$> T.keywords ) ++ (Right <$> T.typeKeywords)) [] parsed

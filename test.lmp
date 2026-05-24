@@ -1,13 +1,11 @@
-#incld prelude.lmp;
+-- id := /\a :: * .\x : a .x;
+-- (id[Int]) a;
+-- struct ::= {fst : Int, snd : Int};
+-- f := /\a :: * .\x : Int .\y : Int .\z : Int .\w : a .+ (+ (+ x y) z) w;
+-- Let test : U4 = Peek U4 0d0 In test;
+-- idt ::= \x :: * .x;
 
+map := /\M :: (* -> *) -> * -> * ./\List :: * -> * .\x : M List Int .x;
 
--- asdf _ _ _ := \x .\y .\z .x y z;
-
-{-
-test = allct 0x300;
-writeMemry test 0d1 0d4;
-retrn readMemry test 0d4;
--}
-
-_ add _ := \m .\n .\f .\x .m f (n f x);
-retrn decd 2 add 3;
+-- id := /\a :: * .\x : a .x;
+-- (id[Int]) 0d2;
