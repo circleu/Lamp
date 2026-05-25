@@ -19,7 +19,7 @@ common warnings
 executable Lamp
     import:           warnings
     main-is:          Main.hs
-    other-modules:    Parser Syntax TypeChecker
+    other-modules:    Parser Syntax TypeChecker Reducer
     -- other-extensions:
     build-depends:    megaparsec, base ^>=4.18.3.0
     hs-source-dirs:   app

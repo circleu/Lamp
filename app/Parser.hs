@@ -18,6 +18,12 @@ keywords = [
     "In",
     "Peek",
     "Poke",
+    "True",
+    "False",
+    "Fix",
+    "If",
+    "Then",
+    "Else",
     "=",
     ":=",
     ":",
@@ -43,7 +49,7 @@ symbol = L.symbol spaceConsumer
 
 identifier :: Parser String
 identifier = do
-    result <- try $ some (noneOf "\n ()[];,") <* spaceConsumer
+    result <- try $ some (noneOf "\n ()[]{};,") <* spaceConsumer
     guard (all not [isInfixOf k result | k <- keywordsPart] && all (/= result) keywords)
     return result
 
@@ -80,24 +86,28 @@ pExpression
     <|> pTypeAbstraction
     <|> pApplication
     <|> pTypeApplication
-    <|> pInteger 
+    <|> pBool
+    <|> pFix
+    <|> pInteger
+    <|> pIfThenElse
     <|> pIdentifier 
     <|> pLet 
     <|> pPeek 
     <|> pPoke 
-    <|> pBlank 
     <|> pParentheses
     <|> pRecord
 pUnitExpression :: Parser S.Expression
 pUnitExpression 
     =   pAbstraction 
     <|> pTypeAbstraction 
-    <|> pInteger 
+    <|> pBool
+    <|> pFix
+    <|> pInteger
+    <|> pIfThenElse
     <|> pIdentifier 
     <|> pLet 
     <|> pPeek 
     <|> pPoke 
-    <|> pBlank 
     <|> pParentheses 
     <|> pRecord
 pAbstraction :: Parser S.Expression
@@ -114,14 +124,31 @@ pApplication = try $ do
     a <- pUnitExpression 
     b <- some pUnitExpression 
     return $ foldl S.Application a b
+pBool :: Parser S.Expression
+pBool = try $ do
+    a <- symbol "True" <|> symbol "False"
+    case a of
+        "True" -> return $ S.Bool True
+        "False" -> return $ S.Bool False
+        _ -> empty
+pFix :: Parser S.Expression
+pFix = try $ do
+    _ <- symbol "Fix"
+    a <- pExpression
+    return $ S.Fix a
 pIdentifier :: Parser S.Expression
 pIdentifier = try $ do
     a <- identifier
     return $ S.Identifier a
-pBlank :: Parser S.Expression
-pBlank = try $ do
-    _ <- symbol "_"
-    return S.Blank
+pIfThenElse :: Parser S.Expression
+pIfThenElse = try $ do
+    _ <- symbol "If"
+    a <- pExpression
+    _ <- symbol "Then"
+    b <- pExpression
+    _ <- symbol "Else"
+    c <- pExpression
+    return $ S.IfThenElse a b c
 pInteger :: Parser S.Expression
 pInteger  = try $ do
     a <- binary <|> octal <|> decimal <|> hexadecimal
@@ -322,10 +349,19 @@ pDeBruijn ast = [converts s | s <- ast] where
         let a' = converte bvs a
             b' = converte bvs b
         in S.Application a' b'
+    converte _ (S.Bool a) = S.Bool a
+    converte bvs (S.Fix a) =
+        let a' = converte bvs a
+        in S.Fix a'
     converte bvs (S.Identifier a) =
         case elemIndex (Left $ S.Identifier a) bvs of
             Just n -> S.DIdentifier n
             Nothing -> S.Identifier a
+    converte bvs (S.IfThenElse a b c) =
+        let a' = converte bvs a
+            b' = converte bvs b
+            c' = converte bvs c
+        in S.IfThenElse a' b' c'
     converte _ (S.Integer a) = S.Integer a
     converte bvs (S.Let a b c) =
         let fa' = converte bvs (fst a)

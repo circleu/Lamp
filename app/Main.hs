@@ -15,5 +15,4 @@ main = do
         case parse P.parse (args !! 0) source of
             Left bundle -> putStr (errorBundlePretty bundle)
             Right parsed -> do
-                putStrLn $ "AST: " ++ show parsed
                 T.tAst ((Left <$> T.keywords ) ++ (Right <$> T.typeKeywords)) [] parsed

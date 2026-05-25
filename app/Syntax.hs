@@ -29,12 +29,14 @@ data Statement
 data Expression
     = Abstraction (Expression, Type) Expression
     | Application Expression Expression
-    | Blank
+    | Bool Bool
     | DAbstraction Type Expression
     | DIdentifier Int
     | DPlaceHolder
     | DTypeAbstraction Kind Expression
+    | Fix Expression
     | Identifier String
+    | IfThenElse Expression Expression Expression
     | Integer Int
     | Let (Expression, Type) Expression Expression
     | Peek Type Expression
