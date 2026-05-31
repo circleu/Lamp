@@ -1,14 +1,24 @@
--- id := /\a :: * .\x : a .x;
--- (id[Int]) Bool;
--- struct ::= {fst : Int, snd : Int};
--- f := /\a :: * .\x : Int .\y : Int .\z : Int .\w : a .+ (+ (+ x y) z) w;
--- Let test : U4 = Peek U4 0d0 In test;
--- idt ::= \x :: * .x;
-
 -- map := /\M :: (* -> *) -> * -> * ./\List :: * -> * .\x : M List Int .x;
 
--- id := /\a :: * .\x : a .x;
--- (id[Int]) 0d2;
 
 _fact := \r : Int -> Int .\n : Int .If == n 0d0 Then 0d1 Else * n (r (- n 0d1));
 fact := Fix _fact;
+
+-- test ::= (\F :: * -> * .\X :: * .F (F X)) (\Y :: * .Y -> Y) Int;
+
+
+-- Global Mut gdt = 0d1;
+-- gdt = 0d2;
+
+-- _test := \x : Int .x;
+-- test := Fix _test;
+
+Global Mut gdt = Alloc 0d23;
+Let asdf = gdt In Peek Int asdf;
+
+test := /\A :: * -> * .\x : A Int .x;
+list ::= \x :: * .x;
+
+(test[list])(0d1);
+
+fact 0d5;
